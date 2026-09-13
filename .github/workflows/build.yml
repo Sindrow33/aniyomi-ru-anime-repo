@@ -1,0 +1,91 @@
+name: Build extensions
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - 'apk/**'
+      - 'icon/**'
+      - 'index.json'
+      - 'index.min.json'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build, sign and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: temurin
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Prepare signing key
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+        run: |
+          if [ -z "$SIGNING_KEY" ]; then
+            echo "::error::SIGNING_KEY secret is missing"
+            exit 1
+          fi
+          printf '%s' "$SIGNING_KEY" | base64 -d > signingkey.jks
+          chmod 600 signingkey.jks
+
+      - name: Build release APKs
+        env:
+          ALIAS: ${{ secrets.ALIAS }}
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          MODULES=$(find src -mindepth 2 -maxdepth 2 -type d -printf ':src:%P\n' | tr '/' ':' | sed 's/$/:assembleRelease/' | tr '\n' ' ')
+          echo "Building: $MODULES"
+          ./gradlew --no-daemon --stacktrace $MODULES
+
+      - name: Collect APKs
+        run: |
+          rm -rf apk
+          mkdir -p apk
+          find src -name '*-release.apk' -print0 | while IFS= read -r -d '' f; do
+            cp "$f" "apk/$(basename "$f" | sed 's/-release\.apk$/.apk/')"
+          done
+          ls -l apk
+
+      - name: Inspect sources
+        run: |
+          INSPECTOR_LINK="$(curl -s "https://api.github.com/repos/komikku-app/aniyomi-extensions-inspector/releases/latest" | jq -r '.assets[0].browser_download_url')"
+          curl -L "$INSPECTOR_LINK" -o ./Inspector.jar
+          java -jar ./Inspector.jar "apk" "output.json" "tmp"
+          cat output.json
+
+      - name: Create repo index
+        run: python3 ./.github/scripts/create-repo.py
+
+      - name: Clean up CI files
+        run: rm -f signingkey.jks Inspector.jar output.json && rm -rf tmp
+
+      - name: Commit repo
+        uses: EndBug/add-and-commit@v9
+        with:
+          message: "chore: publish extensions [skip ci]"
+          add: "apk icon index.json index.min.json"
+          default_author: github_actions

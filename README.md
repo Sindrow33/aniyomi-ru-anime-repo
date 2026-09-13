@@ -1,37 +1,32 @@
-# Русские аниме-расширения для Aniyomi
+# Aniyomi RU Anime Repo
 
-Репозиторий расширений (только аниме, только русские источники) для Aniyomi / Anikku / Mihon-форков.
+Репозиторий русских аниме-расширений для [Aniyomi](https://github.com/aniyomiorg/aniyomi) / [Anikku](https://github.com/komikku-app/anikku).
 
-## Ссылка для Aniyomi
-
-Настройки → Браузер → Репозитории расширений → добавить:
+## Ссылка для добавления в приложение
 
 ```
 https://raw.githubusercontent.com/Sindrow33/aniyomi-ru-anime-repo/main/index.min.json
 ```
 
-## Что внутри
+Настройки → Браузер → Репозитории расширений → добавить ссылку, затем Браузер → Расширения → обновить список.
 
-| Расширение | Источники | Версия |
+## Расширения
+
+| Расширение | Источники | 18+ |
 |---|---|---|
-| Animevost | animevost.org + зеркало v13.vost.pw | 14.10 |
-| YummyAnime | ru.yummyani.me | 14.2 |
-| Animelib | animelib.org/ru (18+) | 14.16 |
+| AniLibria | anilibria.top | нет |
+| Animevost | animevost.org + зеркало v13.vost.pw | нет |
+| YummyAnime | ru.yummyani.me | нет |
+| Animelib | animelib.org/ru | да |
 
-APK взяты из репозитория расширений [yuzono/anime-extensions](https://github.com/yuzono/anime-extensions)
-(Apache-2.0) и подписаны его ключом — `signingKeyFingerprint` в `repo.json` соответствует,
-поэтому Aniyomi устанавливает их без предупреждений о подписи.
+## Сборка
 
-## Структура
+Всё собирается только в GitHub Actions (`.github/workflows/build.yml`): push в `main` → сборка release-APK через Gradle → подпись ключом из секретов → сбор `index.json` / `index.min.json` и иконок → коммит обратно в `main`.
 
-```
-apk/              собранные .apk
-icon/             иконки 512x512, имя = <package>.png
-index.json        читаемый индекс
-index.min.json    индекс для Aniyomi
-repo.json         метаданные репозитория + фингерпринт ключа подписи
-```
+Секреты репозитория: `SIGNING_KEY` (keystore в base64), `KEY_STORE_PASSWORD`, `KEY_PASSWORD`, `ALIAS`.
+
+`repo.json` содержит `signingKeyFingerprint` этого ключа — приложение проверяет подпись APK по нему.
 
 ## Лицензия
 
-Код расширений — Apache-2.0, см. LICENSE.
+Apache License 2.0 — см. [LICENSE](./LICENSE). Код расширений основан на [yuzono/anime-extensions](https://github.com/yuzono/anime-extensions) и [aniyomiorg/extensions-source](https://github.com/aniyomiorg/extensions-source).
