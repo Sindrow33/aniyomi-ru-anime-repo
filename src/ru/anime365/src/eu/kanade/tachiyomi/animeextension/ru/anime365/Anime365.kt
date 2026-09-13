@@ -66,8 +66,7 @@ class Anime365 :
 
     // =============================== Latest ===============================
 
-    override fun latestUpdatesRequest(page: Int): Request =
-        seriesRequest(page, Anime365Filters.SearchParams(onlyAiring = true))
+    override fun latestUpdatesRequest(page: Int): Request = seriesRequest(page, Anime365Filters.SearchParams(onlyAiring = true))
 
     override fun latestUpdatesParse(response: Response): AnimesPage = seriesParse(response)
 
