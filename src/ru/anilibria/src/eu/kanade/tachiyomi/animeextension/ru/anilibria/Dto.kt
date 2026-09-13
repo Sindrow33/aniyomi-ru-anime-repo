@@ -89,7 +89,10 @@ class ReleaseDto(
 
     fun toSAnimeDetails(baseImageUrl: String) = toSAnime(baseImageUrl).apply {
         description = buildString {
-            this@ReleaseDto.description?.let { appendLine(it.trim()); appendLine() }
+            this@ReleaseDto.description?.let {
+                appendLine(it.trim())
+                appendLine()
+            }
             name?.english?.let { appendLine("Английское название: $it") }
             type?.description?.let { appendLine("Тип: $it") }
             year?.let { appendLine("Год: $it") }

@@ -7,8 +7,7 @@ object AniLibriaFilters {
 
     class CheckBoxVal(name: String, state: Boolean = false) : AnimeFilter.CheckBox(name, state)
 
-    open class CheckBoxGroup(name: String, values: List<CheckBoxVal>) :
-        AnimeFilter.Group<AnimeFilter.CheckBox>(name, values)
+    open class CheckBoxGroup(name: String, values: List<CheckBoxVal>) : AnimeFilter.Group<AnimeFilter.CheckBox>(name, values)
 
     class GenresFilter : CheckBoxGroup("Жанр", GENRES.map { CheckBoxVal(it.first) })
     class TypesFilter : CheckBoxGroup("Тип", TYPES.map { CheckBoxVal(it.first) })

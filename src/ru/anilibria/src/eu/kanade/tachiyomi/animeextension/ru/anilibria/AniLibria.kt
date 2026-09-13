@@ -47,8 +47,7 @@ class AniLibria :
 
     // =============================== Latest ===============================
 
-    override fun latestUpdatesRequest(page: Int): Request =
-        catalogRequest(page, AniLibriaFilters.SearchParams(sorting = "FRESH_AT_DESC"))
+    override fun latestUpdatesRequest(page: Int): Request = catalogRequest(page, AniLibriaFilters.SearchParams(sorting = "FRESH_AT_DESC"))
 
     override fun latestUpdatesParse(response: Response): AnimesPage = catalogParse(response)
 
@@ -84,8 +83,7 @@ class AniLibria :
 
     override fun getAnimeUrl(anime: SAnime): String = "$baseUrl/anime/releases/release/${anime.url}"
 
-    override fun animeDetailsParse(response: Response): SAnime =
-        response.parseAs<ReleaseDto>().toSAnimeDetails(baseUrl)
+    override fun animeDetailsParse(response: Response): SAnime = response.parseAs<ReleaseDto>().toSAnimeDetails(baseUrl)
 
     // ============================== Episodes ==============================
 
@@ -184,8 +182,7 @@ class AniLibria :
         return AnimesPage(result.data.map { it.toSAnime(baseUrl) }, hasNextPage)
     }
 
-    private fun Float.formatNumber(): String =
-        if (this % 1f == 0f) toInt().toString() else toString()
+    private fun Float.formatNumber(): String = if (this % 1f == 0f) toInt().toString() else toString()
 
     private fun String.quality(): String? = QUALITY_REGEX.find(this)?.value
 
