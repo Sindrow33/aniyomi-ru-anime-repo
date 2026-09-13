@@ -58,15 +58,13 @@ class AnimeGO :
 
     // ============================== Popular ===============================
 
-    override fun popularAnimeRequest(page: Int): Request =
-        catalogRequest(page, AnimeGOFilters.SearchParams(sort = "popular"))
+    override fun popularAnimeRequest(page: Int): Request = catalogRequest(page, AnimeGOFilters.SearchParams(sort = "popular"))
 
     override fun popularAnimeParse(response: Response): AnimesPage = catalogParse(response)
 
     // =============================== Latest ===============================
 
-    override fun latestUpdatesRequest(page: Int): Request =
-        catalogRequest(page, AnimeGOFilters.SearchParams(sort = "createdAt"))
+    override fun latestUpdatesRequest(page: Int): Request = catalogRequest(page, AnimeGOFilters.SearchParams(sort = "createdAt"))
 
     override fun latestUpdatesParse(response: Response): AnimesPage = catalogParse(response)
 
@@ -121,7 +119,10 @@ class AnimeGO :
             }
             description = buildString {
                 document.selectFirst(".description")?.text()?.trim()
-                    ?.let { appendLine(it); appendLine() }
+                    ?.let {
+                        appendLine(it)
+                        appendLine()
+                    }
                 listOf("Тип", "Эпизоды", "Первоисточник", "Сезон", "Выпуск", "Рейтинг MPAA", "Возрастные ограничения", "Длительность")
                     .forEach { label -> field(label)?.let { appendLine("$label: $it") } }
             }.trim()
