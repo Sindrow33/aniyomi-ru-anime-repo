@@ -18,6 +18,24 @@
     ]
   },
   {
+    "name": "Aniyomi: Anime365",
+    "pkg": "eu.kanade.tachiyomi.animeextension.ru.anime365",
+    "apk": "aniyomi-ru.anime365-v14.1.apk",
+    "lang": "ru",
+    "code": 1,
+    "version": "14.1",
+    "nsfw": 0,
+    "sources": [
+      {
+        "name": "Anime365",
+        "lang": "ru",
+        "id": "119958203155749108",
+        "baseUrl": "https://smotret-anime.online",
+        "versionId": 1
+      }
+    ]
+  },
+  {
     "name": "Aniyomi: AnimeGO",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.animego",
     "apk": "aniyomi-ru.animego-v14.1.apk",
