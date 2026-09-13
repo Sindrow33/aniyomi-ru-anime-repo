@@ -15,6 +15,7 @@ https://raw.githubusercontent.com/Sindrow33/aniyomi-ru-anime-repo/main/index.min
 | Расширение | Источники | 18+ |
 |---|---|---|
 | AniLibria | anilibria.top | нет |
+| AnimeGO | animego.lat (зеркало переключается в настройках) | нет |
 | Animevost | animevost.org + зеркало v13.vost.pw | нет |
 | YummyAnime | ru.yummyani.me | нет |
 | Animelib | animelib.org/ru | да |
