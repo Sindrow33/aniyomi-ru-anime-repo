@@ -18,6 +18,24 @@
     ]
   },
   {
+    "name": "Aniyomi: Animakima",
+    "pkg": "eu.kanade.tachiyomi.animeextension.ru.animakima",
+    "apk": "aniyomi-ru.animakima-v14.1.apk",
+    "lang": "ru",
+    "code": 1,
+    "version": "14.1",
+    "nsfw": 0,
+    "sources": [
+      {
+        "name": "Animakima",
+        "lang": "ru",
+        "id": "1799064727388643526",
+        "baseUrl": "https://animakima.ru",
+        "versionId": 1
+      }
+    ]
+  },
+  {
     "name": "Aniyomi: Anime365",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.anime365",
     "apk": "aniyomi-ru.anime365-v14.1.apk",
