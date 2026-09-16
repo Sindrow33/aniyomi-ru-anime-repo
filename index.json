@@ -169,6 +169,24 @@
     ]
   },
   {
+    "name": "Aniyomi: DoramaLend",
+    "pkg": "eu.kanade.tachiyomi.animeextension.ru.doramalend",
+    "apk": "aniyomi-ru.doramalend-v14.1.apk",
+    "lang": "ru",
+    "code": 1,
+    "version": "14.1",
+    "nsfw": 0,
+    "sources": [
+      {
+        "name": "DoramaLend",
+        "lang": "ru",
+        "id": "8130611425859835280",
+        "baseUrl": "https://s2.doramalend.tv",
+        "versionId": 1
+      }
+    ]
+  },
+  {
     "name": "Aniyomi: JustSu",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.justsu",
     "apk": "aniyomi-ru.justsu-v14.2.apk",
