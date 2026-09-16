@@ -24,6 +24,7 @@ import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import okhttp3.Response
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 class AniMedia :
@@ -304,11 +305,22 @@ class AniMedia :
 
     private fun listParse(response: Response): AnimesPage {
         val document = response.useAsJsoup()
-        val animes = document.select("a.new-anime__link, a.new-series__link")
+        val animes = document.select("main a.new-anime__link, main a.new-series__link")
             .mapNotNull { it.toSAnime() }
             .distinctBy { it.url }
 
-        return AnimesPage(animes, animes.isNotEmpty())
+        val current = PAGE_REGEX.find(response.request.url.encodedPath)
+            ?.groupValues?.get(1)?.toIntOrNull()
+            ?: 1
+
+        return AnimesPage(animes, document.hasPageAfter(current))
+    }
+
+    // DLE renders the pager as plain page links; a next page exists only when one of
+    // them points past the page we are on.
+    private fun Document.hasPageAfter(current: Int): Boolean = select(".pagination a[href], #pagination a[href], .navigation a[href]").any { link ->
+        val page = PAGE_REGEX.find(link.attr("href"))?.groupValues?.get(1)?.toIntOrNull()
+        page != null && page > current
     }
 
     private fun Element.toSAnime(): SAnime? {
@@ -338,5 +350,6 @@ class AniMedia :
         private const val PREF_ONE_PER_VOICE_DEFAULT = true
 
         private val QUALITY_REGEX = Regex("""(\d+)p""")
+        private val PAGE_REGEX = Regex("""/page/(\d+)""")
     }
 }

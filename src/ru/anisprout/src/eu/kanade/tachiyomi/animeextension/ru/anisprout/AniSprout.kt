@@ -346,21 +346,30 @@ class AniSprout :
     // =============================== Utils ================================
 
     private fun listRequest(path: String, page: Int): Request {
-        val url = (baseUrl + path.ifBlank { "/top/" }).toHttpUrl().newBuilder()
-            .addQueryParameter("p", page.toString())
-            .build()
+        val resolved = path.ifBlank { DEFAULT_PATH }
+        val builder = (baseUrl + resolved).toHttpUrl().newBuilder()
 
-        return GET(url, headers)
+        // Only the paginated sections understand ?p=; the others always answer with the same list.
+        if (resolved.isPaginated()) builder.addQueryParameter("p", page.toString())
+
+        return GET(builder.build(), headers)
     }
 
     private fun listParse(response: Response): AnimesPage {
         val document = response.useAsJsoup()
-        val animes = document.select("card-title.card, p.card-title")
+
+        // Scope to the catalog container: the page also carries a schedule popup,
+        // a sidebar block and a "related" carousel built from the same card markup.
+        val animes = document.select("div.title-list card-title.card")
             .mapNotNull { it.toSAnimeFromCard() }
             .distinctBy { it.url }
 
-        return AnimesPage(animes, animes.isNotEmpty())
+        val paginated = response.request.url.encodedPath.isPaginated()
+
+        return AnimesPage(animes, paginated && animes.size >= PAGE_SIZE)
     }
+
+    private fun String.isPaginated(): Boolean = SINGLE_PAGE_PATHS.none { startsWith(it) }
 
     private fun Element.toSAnimeFromCard(): SAnime? {
         val link = selectFirst("a.card-link") ?: return null
@@ -417,6 +426,10 @@ class AniSprout :
     private fun String.parseQuality(): Int = QUALITY_REGEX.find(this)?.groupValues?.get(1)?.toIntOrNull() ?: 0
 
     companion object {
+        private const val DEFAULT_PATH = "/top/"
+        private const val PAGE_SIZE = 48
+        private val SINGLE_PAGE_PATHS = listOf("/top/", "/last/", "/announcement/")
+
         private const val PREF_QUALITY_KEY = "pref_quality"
         private const val PREF_QUALITY_DEFAULT = "1080p"
         private val PREF_QUALITY_ENTRIES = listOf("1080p", "720p", "480p", "360p")

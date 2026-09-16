@@ -83,9 +83,14 @@ class Animakima :
         if (!response.request.url.toString().startsWith(apiUrl)) return listParse(response)
 
         val html = response.parseAs<ApiResponse>().data ?: return AnimesPage(emptyList(), false)
-        val animes = Jsoup.parseBodyFragment(html, baseUrl)
-            .select("p.card-title")
-            .mapNotNull { it.toSAnimeFromSearch() }
+        val fragment = Jsoup.parseBodyFragment(html, baseUrl)
+
+        // The same endpoint backs the country top charts, which use the regular card markup.
+        val animes = if (fragment.selectFirst("card-title.card") != null) {
+            fragment.select("card-title.card").mapNotNull { it.toSAnimeFromCard() }
+        } else {
+            fragment.select("p.card-title").mapNotNull { it.toSAnimeFromSearch() }
+        }.distinctBy { it.url }
 
         return AnimesPage(animes, false)
     }
@@ -346,20 +351,48 @@ class Animakima :
     // =============================== Utils ================================
 
     private fun listRequest(path: String, page: Int): Request {
-        val url = (baseUrl + path.ifBlank { "/top/japan/" }).toHttpUrl().newBuilder()
-            .addQueryParameter("p", page.toString())
-            .build()
+        val resolved = path.ifBlank { DEFAULT_PATH }
 
-        return GET(url, headers)
+        // The site's own /top/<country>/ pages are broken for China; the API that the
+        // page itself calls still answers with the full chart, so use it directly.
+        TOP_COUNTRIES[resolved]?.let { country ->
+            return apiRequest("get_top", "country" to country)
+        }
+
+        val builder = (baseUrl + resolved).toHttpUrl().newBuilder()
+
+        // Only the paginated sections understand ?p=; the others always answer with the same list.
+        if (resolved.isPaginated()) builder.addQueryParameter("p", page.toString())
+
+        return GET(builder.build(), headers)
     }
 
     private fun listParse(response: Response): AnimesPage {
+        if (response.request.url.toString().startsWith(apiUrl)) return topChartParse(response)
+
         val document = response.useAsJsoup()
-        val animes = document.select("card-title.card, p.card-title")
+
+        // Scope to the catalog container: the page also carries a schedule popup,
+        // a sidebar block and a "related" carousel built from the same card markup.
+        val animes = document.select("div.title-list card-title.card")
             .mapNotNull { it.toSAnimeFromCard() }
             .distinctBy { it.url }
 
-        return AnimesPage(animes, animes.isNotEmpty())
+        val paginated = response.request.url.encodedPath.isPaginated()
+
+        return AnimesPage(animes, paginated && animes.size >= PAGE_SIZE)
+    }
+
+    private fun String.isPaginated(): Boolean = SINGLE_PAGE_PATHS.none { startsWith(it) }
+
+    private fun topChartParse(response: Response): AnimesPage {
+        val html = response.parseAs<ApiResponse>().data ?: return AnimesPage(emptyList(), false)
+        val animes = Jsoup.parseBodyFragment(html, baseUrl)
+            .select("card-title.card")
+            .mapNotNull { it.toSAnimeFromCard() }
+            .distinctBy { it.url }
+
+        return AnimesPage(animes, false)
     }
 
     private fun Element.toSAnimeFromCard(): SAnime? {
@@ -417,6 +450,11 @@ class Animakima :
     private fun String.parseQuality(): Int = QUALITY_REGEX.find(this)?.groupValues?.get(1)?.toIntOrNull() ?: 0
 
     companion object {
+        private const val DEFAULT_PATH = "/top/japan/"
+        private const val PAGE_SIZE = 48
+        private val SINGLE_PAGE_PATHS = listOf("/top/", "/last/", "/announcement/")
+        private val TOP_COUNTRIES = mapOf("/top/japan/" to "japan", "/top/china/" to "china")
+
         private const val PREF_QUALITY_KEY = "pref_quality"
         private const val PREF_QUALITY_DEFAULT = "1080p"
         private val PREF_QUALITY_ENTRIES = listOf("1080p", "720p", "480p", "360p")

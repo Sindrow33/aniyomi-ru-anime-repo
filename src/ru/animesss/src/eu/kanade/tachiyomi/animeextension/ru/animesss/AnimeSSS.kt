@@ -28,6 +28,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import okhttp3.Response
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 class AnimeSSS :
@@ -491,17 +492,26 @@ class AnimeSSS :
 
     private fun listParse(response: Response): AnimesPage {
         val document = response.useAsJsoup()
-        val animes = document.select("a.poster, a.th-item, a.short-item, .poster a[href*=/aniserials/]")
+
+        // Restrict to the main column and drop the "related" carousel: both reuse the
+        // same card markup, which used to surface the same titles twice in one page.
+        val animes = document.select("main.col-main a.poster")
+            .filter { it.closest(".pmovie__related") == null }
             .mapNotNull { it.toSAnime() }
             .distinctBy { it.url }
-            .ifEmpty {
-                // DLE themes vary between sections — fall back to any title link on the page.
-                document.select("a[href*=/aniserials/][href$=.html]")
-                    .mapNotNull { it.toSAnime() }
-                    .distinctBy { it.url }
-            }
 
-        return AnimesPage(animes, animes.isNotEmpty())
+        val current = PAGE_REGEX.find(response.request.url.encodedPath)
+            ?.groupValues?.get(1)?.toIntOrNull()
+            ?: 1
+
+        return AnimesPage(animes, document.hasPageAfter(current))
+    }
+
+    // DLE renders the pager as plain page links; a next page exists only when one of
+    // them points past the page we are on.
+    private fun Document.hasPageAfter(current: Int): Boolean = select("#pagination a[href], .pagination a[href]").any { link ->
+        val page = PAGE_REGEX.find(link.attr("href"))?.groupValues?.get(1)?.toIntOrNull()
+        page != null && page > current
     }
 
     private fun Element.toSAnime(): SAnime? {
@@ -554,5 +564,6 @@ class AnimeSSS :
 
         private val URL_PARAMS_REGEX = Regex("""urlParams\s*=\s*'(.*?)'""")
         private val QUALITY_REGEX = Regex("""(\d+)p""")
+        private val PAGE_REGEX = Regex("""/page/(\d+)""")
     }
 }

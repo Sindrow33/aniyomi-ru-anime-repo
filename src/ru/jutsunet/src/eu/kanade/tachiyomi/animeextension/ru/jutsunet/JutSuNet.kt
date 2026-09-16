@@ -28,6 +28,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import okhttp3.Response
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 class JutSuNet :
@@ -389,6 +390,10 @@ class JutSuNet :
 
     private fun listRequest(path: String, page: Int): Request {
         val cleanPath = path.ifBlank { "/anime/" }.removeSuffix("/")
+
+        // "ТОП 100" is a fixed single-page chart: /page/N there returns the same 100 rows.
+        if (cleanPath in SINGLE_PAGE_PATHS) return GET("$baseUrl$cleanPath/", headers)
+
         val url = if (page > 1) "$baseUrl$cleanPath/page/$page/" else "$baseUrl$cleanPath/"
 
         return GET(url, headers)
@@ -396,11 +401,23 @@ class JutSuNet :
 
     private fun listParse(response: Response): AnimesPage {
         val document = response.useAsJsoup()
-        val animes = document.select("a.jutsu-item__title")
+        val animes = document.select("main.jutsu-main a.jutsu-item__title")
             .mapNotNull { it.toSAnime() }
             .distinctBy { it.url }
 
-        return AnimesPage(animes, animes.isNotEmpty())
+        val path = response.request.url.encodedPath
+        if (SINGLE_PAGE_PATHS.any { path.startsWith(it) }) return AnimesPage(animes, false)
+
+        val current = PAGE_REGEX.find(path)?.groupValues?.get(1)?.toIntOrNull() ?: 1
+
+        return AnimesPage(animes, document.hasPageAfter(current))
+    }
+
+    // DLE renders the pager as plain page links; a next page exists only when one of
+    // them points past the page we are on.
+    private fun Document.hasPageAfter(current: Int): Boolean = select("#pagination a[href], .pagination a[href]").any { link ->
+        val page = PAGE_REGEX.find(link.attr("href"))?.groupValues?.get(1)?.toIntOrNull()
+        page != null && page > current
     }
 
     private fun Element.toSAnime(): SAnime? {
@@ -441,5 +458,7 @@ class JutSuNet :
         private val ID_REGEX = Regex("""id=(\d+)""")
         private val URL_PARAMS_REGEX = Regex("""urlParams\s*=\s*'(.*?)'""")
         private val QUALITY_REGEX = Regex("""(\d+)p""")
+        private val PAGE_REGEX = Regex("""/page/(\d+)""")
+        private val SINGLE_PAGE_PATHS = listOf("/top100")
     }
 }

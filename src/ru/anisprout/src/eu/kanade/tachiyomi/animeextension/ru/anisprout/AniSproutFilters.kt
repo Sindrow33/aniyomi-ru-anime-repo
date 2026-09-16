@@ -7,14 +7,12 @@ object AniSproutFilters {
 
     class SectionFilter : AnimeFilter.Select<String>("Раздел", SECTIONS.map { it.first }.toTypedArray(), 0)
     class GenreFilter : AnimeFilter.Select<String>("Жанр", GENRES.map { it.first }.toTypedArray(), 0)
-    class CountryFilter : AnimeFilter.Select<String>("Страна", COUNTRIES.map { it.first }.toTypedArray(), 0)
 
     val FILTER_LIST
         get() = AnimeFilterList(
-            AnimeFilter.Header("Жанр и страна имеют приоритет над разделом"),
+            AnimeFilter.Header("Жанр имеет приоритет над разделом"),
             SectionFilter(),
             GenreFilter(),
-            CountryFilter(),
         )
 
     data class SearchParams(
@@ -29,9 +27,6 @@ object AniSproutFilters {
         val genre = filters.firstOrNullAs<GenreFilter>()?.state ?: 0
         if (genre > 0) return SearchParams(GENRES[genre].second)
 
-        val country = filters.firstOrNullAs<CountryFilter>()?.state ?: 0
-        if (country > 0) return SearchParams(COUNTRIES[country].second)
-
         val section = filters.firstOrNullAs<SectionFilter>()?.state ?: 0
         return SearchParams(SECTIONS.getOrElse(section) { SECTIONS[0] }.second)
     }
@@ -43,14 +38,6 @@ object AniSproutFilters {
         "Фильмы" to "/films/",
         "OVA" to "/ova/",
         "Анонсы" to "/announcement/",
-    )
-
-    private val COUNTRIES = listOf(
-        "Любая" to "",
-        "Япония" to "/country/japan/",
-        "Китай" to "/country/china/",
-        "Корея" to "/country/rk/",
-        "США" to "/country/usa/",
     )
 
     private val GENRES = listOf(
