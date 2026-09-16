@@ -59,15 +59,13 @@ class DoramyClub :
 
     // ============================== Popular ===============================
 
-    override fun popularAnimeRequest(page: Int): Request =
-        filterRequest(page, DoramyClubFilters.SearchParams(sort = "reads"))
+    override fun popularAnimeRequest(page: Int): Request = filterRequest(page, DoramyClubFilters.SearchParams(sort = "reads"))
 
     override fun popularAnimeParse(response: Response): AnimesPage = filterParse(response)
 
     // =============================== Latest ===============================
 
-    override fun latestUpdatesRequest(page: Int): Request =
-        filterRequest(page, DoramyClubFilters.SearchParams(sort = "date"))
+    override fun latestUpdatesRequest(page: Int): Request = filterRequest(page, DoramyClubFilters.SearchParams(sort = "date"))
 
     override fun latestUpdatesParse(response: Response): AnimesPage = filterParse(response)
 
