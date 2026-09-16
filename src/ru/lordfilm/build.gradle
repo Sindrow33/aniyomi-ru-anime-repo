@@ -1,0 +1,12 @@
+ext {
+    extName = 'LordFilm'
+    extClass = '.LordFilm'
+    extVersionCode = 1
+    isNsfw = false
+}
+
+apply plugin: "kei.plugins.extension.legacy"
+
+dependencies {
+    implementation(project(':lib:playlistutils'))
+}
