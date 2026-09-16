@@ -184,13 +184,12 @@ class JutSuNet :
         val number: Float get() = value.toFloatOrNull() ?: 1f
     }
 
-    private fun parseEpisodeOptions(playerHtml: String): List<EpisodeOption> =
-        Jsoup.parse(playerHtml)
-            .select(".serial-series-box option")
-            .mapNotNull { option ->
-                val value = option.attr("value").takeIf { it.isNotBlank() } ?: return@mapNotNull null
-                EpisodeOption(value, option.attr("data-title").trim())
-            }
+    private fun parseEpisodeOptions(playerHtml: String): List<EpisodeOption> = Jsoup.parse(playerHtml)
+        .select(".serial-series-box option")
+        .mapNotNull { option ->
+            val value = option.attr("value").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            EpisodeOption(value, option.attr("data-title").trim())
+        }
 
     // ============================ Video Links =============================
 
