@@ -61,8 +61,9 @@ class Bldub :
 
     // =============================== Search ===============================
 
-    override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request =
-        titlesRequest(page, query, BldubFilters.getSearchParameters(filters))
+    override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
+        return titlesRequest(page, query, BldubFilters.getSearchParameters(filters))
+    }
 
     override fun searchAnimeParse(response: Response): AnimesPage = titlesParse(response)
 
@@ -70,8 +71,7 @@ class Bldub :
 
     // =========================== Anime Details ============================
 
-    override fun animeDetailsRequest(anime: SAnime): Request =
-        GET(apiUrl("GetTitleDetail").addQueryParameter("id", anime.titleId).build(), headers)
+    override fun animeDetailsRequest(anime: SAnime): Request = idRequest("GetTitleDetail", anime.titleId)
 
     override fun getAnimeUrl(anime: SAnime): String = "$baseUrl/title/${anime.titleId}"
 
@@ -114,8 +114,7 @@ class Bldub :
 
     // ============================== Episodes ==============================
 
-    override fun episodeListRequest(anime: SAnime): Request =
-        GET(apiUrl("GetTitleEpisodes").addQueryParameter("id", anime.titleId).build(), headers)
+    override fun episodeListRequest(anime: SAnime): Request = idRequest("GetTitleEpisodes", anime.titleId)
 
     override fun episodeListParse(response: Response): List<SEpisode> {
         val items = response.parseAs<List<EpisodeItem>>()
@@ -238,6 +237,8 @@ class Bldub :
             ?: 720
 
     // =============================== Utils ================================
+
+    private fun idRequest(action: String, id: String): Request = GET(apiUrl(action).addQueryParameter("id", id).build(), headers)
 
     private fun titlesRequest(page: Int, query: String, params: BldubFilters.SearchParams): Request {
         val builder = apiUrl("GetTitles")
