@@ -454,13 +454,12 @@ class AnimeSSS :
         )
     }
 
-    private fun parseKodikLinks(playlistHtml: String): List<Pair<String, String>> =
-        Jsoup.parse(playlistHtml)
-            .select("[data-this-link]")
-            .mapNotNull { element ->
-                val link = element.attr("data-this-link").takeIf { it.isNotBlank() } ?: return@mapNotNull null
-                element.text().trim().ifBlank { "Kodik" } to link
-            }
+    private fun parseKodikLinks(playlistHtml: String): List<Pair<String, String>> = Jsoup.parse(playlistHtml)
+        .select("[data-this-link]")
+        .mapNotNull { element ->
+            val link = element.attr("data-this-link").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            element.text().trim().ifBlank { "Kodik" } to link
+        }
 
     private fun hubPlaylistRequest(hub: HubParams): Request {
         val url = "$HUB_API_URL/player/sv/playlist".toHttpUrl().newBuilder()
