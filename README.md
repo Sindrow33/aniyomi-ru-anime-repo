@@ -22,6 +22,7 @@ https://raw.githubusercontent.com/Sindrow33/aniyomi-ru-anime-repo/main/index.min
 | AniMedia | animemedia.org | нет |
 | JustSu | just-su.org | нет |
 | Jut-su.net | jut-su.net | нет |
+| AnimeSSS | animesss.tv | нет |
 | Animevost | animevost.org + зеркало v13.vost.pw | нет |
 | YummyAnime | ru.yummyani.me | нет |
 | Animelib | animelib.org/ru | да |
