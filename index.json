@@ -108,6 +108,24 @@
     ]
   },
   {
+    "name": "Aniyomi: AnimeSSS",
+    "pkg": "eu.kanade.tachiyomi.animeextension.ru.animesss",
+    "apk": "aniyomi-ru.animesss-v14.1.apk",
+    "lang": "ru",
+    "code": 1,
+    "version": "14.1",
+    "nsfw": 0,
+    "sources": [
+      {
+        "name": "AnimeSSS",
+        "lang": "ru",
+        "id": "7515118130006638233",
+        "baseUrl": "https://animesss.tv",
+        "versionId": 1
+      }
+    ]
+  },
+  {
     "name": "Aniyomi: Animelib",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.animelib",
     "apk": "aniyomi-ru.animelib-v14.16.apk",
