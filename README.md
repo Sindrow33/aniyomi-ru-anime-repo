@@ -30,6 +30,8 @@ https://raw.githubusercontent.com/Sindrow33/aniyomi-ru-anime-repo/main/index.min
 | DoramyClub | doramyclub.media (дорамы и фильмы Азии, плеер Kodik) | нет |
 | BLDUB | bldub.com + зеркала bldub.live (BL/GL дорамы и лакорны) | нет |
 | Eporner | eporner.com (18+, официальный API) | да |
+| XNXX | xnxx.com (18+) | да |
+| XV-RU | xv-ru.com (18+, русская версия xvideos) | да |
 
 ## Сборка
 
