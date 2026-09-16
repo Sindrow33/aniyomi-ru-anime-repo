@@ -2,11 +2,12 @@ package eu.kanade.tachiyomi.animeextension.all.xnxx
 
 import eu.kanade.tachiyomi.multisrc.xvideostheme.XvideosTheme
 
-class Xnxx : XvideosTheme(
-    name = "XNXX",
-    baseUrl = "https://www.xnxx.com",
-    lang = "all",
-) {
+class Xnxx :
+    XvideosTheme(
+        name = "XNXX",
+        baseUrl = "https://www.xnxx.com",
+        lang = "all",
+    ) {
     override val popularPath = "/best"
 
     override val latestPath = "/hits"

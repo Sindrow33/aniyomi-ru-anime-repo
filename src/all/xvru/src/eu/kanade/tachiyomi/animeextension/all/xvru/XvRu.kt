@@ -2,11 +2,12 @@ package eu.kanade.tachiyomi.animeextension.all.xvru
 
 import eu.kanade.tachiyomi.multisrc.xvideostheme.XvideosTheme
 
-class XvRu : XvideosTheme(
-    name = "XV-RU",
-    baseUrl = "https://www.xv-ru.com",
-    lang = "all",
-) {
+class XvRu :
+    XvideosTheme(
+        name = "XV-RU",
+        baseUrl = "https://www.xv-ru.com",
+        lang = "all",
+    ) {
     override val popularPath = "/best"
 
     override val latestPath = "/new"
