@@ -28,6 +28,7 @@ https://raw.githubusercontent.com/Sindrow33/aniyomi-ru-anime-repo/main/index.min
 | Animelib | animelib.org/ru | да |
 | DoramaLend | s2.doramalend.tv (дорамы: Корея, Китай, Япония) | нет |
 | DoramyClub | doramyclub.media (дорамы и фильмы Азии, плеер Kodik) | нет |
+| BLDUB | bldub.com + зеркала bldub.live (BL/GL дорамы и лакорны) | нет |
 
 ## Сборка
 
