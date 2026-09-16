@@ -26,6 +26,7 @@ https://raw.githubusercontent.com/Sindrow33/aniyomi-ru-anime-repo/main/index.min
 | Animevost | animevost.org + зеркало v13.vost.pw | нет |
 | YummyAnime | ru.yummyani.me | нет |
 | Animelib | animelib.org/ru | да |
+| DoramaLend | s2.doramalend.tv (дорамы: Корея, Китай, Япония) | нет |
 
 ## Сборка
 
