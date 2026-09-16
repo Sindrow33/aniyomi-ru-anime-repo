@@ -169,6 +169,24 @@
     ]
   },
   {
+    "name": "Aniyomi: BLDUB",
+    "pkg": "eu.kanade.tachiyomi.animeextension.ru.bldub",
+    "apk": "aniyomi-ru.bldub-v14.1.apk",
+    "lang": "ru",
+    "code": 1,
+    "version": "14.1",
+    "nsfw": 0,
+    "sources": [
+      {
+        "name": "BLDUB",
+        "lang": "ru",
+        "id": "1791442958928298467",
+        "baseUrl": "https://bldub.com",
+        "versionId": 1
+      }
+    ]
+  },
+  {
     "name": "Aniyomi: DoramaLend",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.doramalend",
     "apk": "aniyomi-ru.doramalend-v14.1.apk",
