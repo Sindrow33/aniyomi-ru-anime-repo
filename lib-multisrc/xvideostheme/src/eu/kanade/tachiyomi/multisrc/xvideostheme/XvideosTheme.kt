@@ -77,8 +77,8 @@ abstract class XvideosTheme(
     override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
         if (query.isNotBlank()) return GET(searchUrl(query, page), headers)
 
-        val section = filters.filterIsInstance<SectionFilter>().firstOrNull()?.selected(sections)
-            ?: sections.first().second
+        val state = filters.filterIsInstance<SectionFilter>().firstOrNull()?.state ?: 0
+        val section = sections.getOrElse(state) { sections.first() }.second
 
         return listRequest(section, page)
     }
@@ -87,13 +87,10 @@ abstract class XvideosTheme(
 
     override fun getFilterList(): AnimeFilterList = AnimeFilterList(
         AnimeFilter.Header("Раздел учитывается, когда строка поиска пуста"),
-        SectionFilter(sections),
+        SectionFilter(sections.map { it.first }.toTypedArray()),
     )
 
-    protected class SectionFilter(sections: List<Pair<String, String>>) :
-        AnimeFilter.Select<String>("Раздел", sections.map { it.first }.toTypedArray(), 0) {
-        fun selected(all: List<Pair<String, String>>) = all.getOrElse(state) { all[0] }.second
-    }
+    protected class SectionFilter(labels: Array<String>) : AnimeFilter.Select<String>("Раздел", labels, 0)
 
     // =========================== Anime Details ============================
 
@@ -207,9 +204,7 @@ abstract class XvideosTheme(
         return AnimesPage(animes, animes.isNotEmpty() && document.hasNextPage())
     }
 
-    protected open fun Document.hasNextPage(): Boolean =
-        selectFirst(".pagination a.next-page, .pagination li a[rel=next]") != null ||
-            select(".pagination a").isNotEmpty()
+    protected open fun Document.hasNextPage(): Boolean = select(PAGER_SELECTOR).isNotEmpty()
 
     protected open fun Element.toSAnime(): SAnime? {
         val link = selectFirst(".thumb a[href], .thumb-under a[href]") ?: return null
@@ -243,6 +238,8 @@ abstract class XvideosTheme(
             "Высокое (mp4)" to Regex("""setVideoUrlHigh\('([^']+)'\)"""),
             "Низкое (mp4)" to Regex("""setVideoUrlLow\('([^']+)'\)"""),
         )
+        private const val PAGER_SELECTOR = ".pagination a[href], .pagination li a[href]"
+
         private val HLS_REGEX = Regex("""setVideoHLS\('([^']+)'\)""")
         private val QUALITY_REGEX = Regex("""(\d+)p""")
     }
