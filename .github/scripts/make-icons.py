@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate launcher icons for every RU anime extension in one unified style.
+"""Generate launcher icons for every extension in one unified style.
 
 Style: 192px canvas (xxxhdpi), rounded square inset 5px, radius 44,
 accent-coloured 5px border, near-black tinted fill, big bold accent monogram.
@@ -12,7 +12,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-SRC = Path(__file__).resolve().parents[2] / "src" / "ru"
+SRC = Path(__file__).resolve().parents[2] / "src"
 FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 
 # density -> icon side in px
@@ -40,6 +40,7 @@ ICONS = {
     "anisprout": ("AS", (120, 220, 120), (16, 34, 24)),
     "doramalend": ("DL", (255, 105, 160), (38, 16, 28)),
     "bldub": ("BL", (255, 80, 130), (30, 14, 24)),
+    "eporner": ("EP", (255, 160, 40), (34, 22, 10)),
     "doramyclub": ("DC", (80, 200, 210), (14, 30, 34)),
     "justsu": ("JS", (255, 190, 80), (36, 26, 14)),
     "jutsunet": ("JN", (90, 200, 230), (14, 28, 38)),
@@ -91,8 +92,9 @@ def main(only=None):
         if only and ext not in only:
             continue
         master = render(monogram, accent, fill)
+        ext_dir = next((d for d in sorted(SRC.iterdir()) if (d / ext).is_dir()), SRC / "ru")
         for density, side in DENSITIES.items():
-            out = SRC / ext / "res" / f"mipmap-{density}" / "ic_launcher.png"
+            out = ext_dir / ext / "res" / f"mipmap-{density}" / "ic_launcher.png"
             out.parent.mkdir(parents=True, exist_ok=True)
             master.resize((side, side), Image.LANCZOS).save(out)
         print(f"{ext}: {monogram}")
