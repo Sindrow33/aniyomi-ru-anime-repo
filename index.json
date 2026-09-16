@@ -18,6 +18,24 @@
     ]
   },
   {
+    "name": "Aniyomi: AniMedia",
+    "pkg": "eu.kanade.tachiyomi.animeextension.ru.animedia",
+    "apk": "aniyomi-ru.animedia-v14.1.apk",
+    "lang": "ru",
+    "code": 1,
+    "version": "14.1",
+    "nsfw": 0,
+    "sources": [
+      {
+        "name": "AniMedia",
+        "lang": "ru",
+        "id": "8235909867102963087",
+        "baseUrl": "https://animemedia.org",
+        "versionId": 1
+      }
+    ]
+  },
+  {
     "name": "Aniyomi: AniSprout",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.anisprout",
     "apk": "aniyomi-ru.anisprout-v14.1.apk",
