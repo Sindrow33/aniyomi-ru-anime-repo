@@ -151,6 +151,24 @@
     ]
   },
   {
+    "name": "Aniyomi: JustSu",
+    "pkg": "eu.kanade.tachiyomi.animeextension.ru.justsu",
+    "apk": "aniyomi-ru.justsu-v14.1.apk",
+    "lang": "ru",
+    "code": 1,
+    "version": "14.1",
+    "nsfw": 0,
+    "sources": [
+      {
+        "name": "JustSu",
+        "lang": "ru",
+        "id": "292877448115528956",
+        "baseUrl": "https://just-su.org",
+        "versionId": 1
+      }
+    ]
+  },
+  {
     "name": "Aniyomi: YummyAnime",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.yummyanime",
     "apk": "aniyomi-ru.yummyanime-v14.2.apk",
