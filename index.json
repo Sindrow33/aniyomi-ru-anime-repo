@@ -187,6 +187,24 @@
     ]
   },
   {
+    "name": "Aniyomi: DoramyClub",
+    "pkg": "eu.kanade.tachiyomi.animeextension.ru.doramyclub",
+    "apk": "aniyomi-ru.doramyclub-v14.1.apk",
+    "lang": "ru",
+    "code": 1,
+    "version": "14.1",
+    "nsfw": 0,
+    "sources": [
+      {
+        "name": "DoramyClub",
+        "lang": "ru",
+        "id": "7184855397244464145",
+        "baseUrl": "https://doramyclub.media",
+        "versionId": 1
+      }
+    ]
+  },
+  {
     "name": "Aniyomi: JustSu",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.justsu",
     "apk": "aniyomi-ru.justsu-v14.2.apk",
