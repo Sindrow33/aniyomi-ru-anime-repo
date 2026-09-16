@@ -19,6 +19,7 @@ https://raw.githubusercontent.com/Sindrow33/aniyomi-ru-anime-repo/main/index.min
 | Anime365 | smotret-anime.online (для видео нужен аккаунт с подпиской) | нет |
 | Animakima | animakima.ru | нет |
 | AniSprout | anisprout.com | нет |
+| AniMedia | animemedia.org | нет |
 | Animevost | animevost.org + зеркало v13.vost.pw | нет |
 | YummyAnime | ru.yummyani.me | нет |
 | Animelib | animelib.org/ru | да |
