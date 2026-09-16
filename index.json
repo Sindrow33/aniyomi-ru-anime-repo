@@ -18,6 +18,24 @@
     ]
   },
   {
+    "name": "Aniyomi: AniSprout",
+    "pkg": "eu.kanade.tachiyomi.animeextension.ru.anisprout",
+    "apk": "aniyomi-ru.anisprout-v14.1.apk",
+    "lang": "ru",
+    "code": 1,
+    "version": "14.1",
+    "nsfw": 0,
+    "sources": [
+      {
+        "name": "AniSprout",
+        "lang": "ru",
+        "id": "198014268429531462",
+        "baseUrl": "https://anisprout.com",
+        "versionId": 1
+      }
+    ]
+  },
+  {
     "name": "Aniyomi: Animakima",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.animakima",
     "apk": "aniyomi-ru.animakima-v14.1.apk",
