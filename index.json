@@ -169,6 +169,24 @@
     ]
   },
   {
+    "name": "Aniyomi: Jut-su.net",
+    "pkg": "eu.kanade.tachiyomi.animeextension.ru.jutsunet",
+    "apk": "aniyomi-ru.jutsunet-v14.1.apk",
+    "lang": "ru",
+    "code": 1,
+    "version": "14.1",
+    "nsfw": 0,
+    "sources": [
+      {
+        "name": "Jut-su.net",
+        "lang": "ru",
+        "id": "8695730352083027493",
+        "baseUrl": "https://jut-su.net",
+        "versionId": 1
+      }
+    ]
+  },
+  {
     "name": "Aniyomi: YummyAnime",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.yummyanime",
     "apk": "aniyomi-ru.yummyanime-v14.2.apk",
