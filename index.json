@@ -277,6 +277,24 @@
     ]
   },
   {
+    "name": "Aniyomi: LakornMania",
+    "pkg": "eu.kanade.tachiyomi.animeextension.ru.lakornmania",
+    "apk": "aniyomi-ru.lakornmania-v14.1.apk",
+    "lang": "ru",
+    "code": 1,
+    "version": "14.1",
+    "nsfw": 0,
+    "sources": [
+      {
+        "name": "LakornMania",
+        "lang": "ru",
+        "id": "4223031451330535666",
+        "baseUrl": "https://lakornmania.ru",
+        "versionId": 1
+      }
+    ]
+  },
+  {
     "name": "Aniyomi: XNXX",
     "pkg": "eu.kanade.tachiyomi.animeextension.all.xnxx",
     "apk": "aniyomi-all.xnxx-v14.1.apk",
