@@ -61,9 +61,7 @@ class Bldub :
 
     // =============================== Search ===============================
 
-    override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
-        return titlesRequest(page, query, BldubFilters.getSearchParameters(filters))
-    }
+    override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList) = titlesRequest(page, query, filters.toParams())
 
     override fun searchAnimeParse(response: Response): AnimesPage = titlesParse(response)
 
@@ -237,6 +235,8 @@ class Bldub :
             ?: 720
 
     // =============================== Utils ================================
+
+    private fun AnimeFilterList.toParams() = BldubFilters.getSearchParameters(this)
 
     private fun idRequest(action: String, id: String): Request = GET(apiUrl(action).addQueryParameter("id", id).build(), headers)
 
