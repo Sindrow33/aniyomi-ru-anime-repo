@@ -277,6 +277,42 @@
     ]
   },
   {
+    "name": "Aniyomi: XNXX",
+    "pkg": "eu.kanade.tachiyomi.animeextension.all.xnxx",
+    "apk": "aniyomi-all.xnxx-v14.1.apk",
+    "lang": "all",
+    "code": 1,
+    "version": "14.1",
+    "nsfw": 1,
+    "sources": [
+      {
+        "name": "XNXX",
+        "lang": "all",
+        "id": "1853973586604481267",
+        "baseUrl": "https://www.xnxx.com",
+        "versionId": 1
+      }
+    ]
+  },
+  {
+    "name": "Aniyomi: XV-RU",
+    "pkg": "eu.kanade.tachiyomi.animeextension.all.xvru",
+    "apk": "aniyomi-all.xvru-v14.1.apk",
+    "lang": "all",
+    "code": 1,
+    "version": "14.1",
+    "nsfw": 1,
+    "sources": [
+      {
+        "name": "XV-RU",
+        "lang": "all",
+        "id": "1309012182288310163",
+        "baseUrl": "https://www.xv-ru.com",
+        "versionId": 1
+      }
+    ]
+  },
+  {
     "name": "Aniyomi: YummyAnime",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.yummyanime",
     "apk": "aniyomi-ru.yummyanime-v14.3.apk",
