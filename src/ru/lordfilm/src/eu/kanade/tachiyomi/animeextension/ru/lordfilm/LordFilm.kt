@@ -60,7 +60,10 @@ class LordFilm :
 
     // =============================== Latest ===============================
 
-    override fun latestUpdatesRequest(page: Int): Request = listRequest("", page)
+    // The front page repeats titles and has no pager, so the news feed is used; it
+    // is the only listing that pages with `cstart` instead of a path segment.
+    override fun latestUpdatesRequest(page: Int): Request =
+        GET("$baseUrl/index.php?do=lastnews&cstart=$page", headers)
 
     override fun latestUpdatesParse(response: Response): AnimesPage = listParse(response)
 
@@ -300,14 +303,24 @@ class LordFilm :
         return POST("$baseUrl/index.php?do=search", headers, body)
     }
 
+    /**
+     * Page size differs per section (24 in the catalogue, fewer on the small ones),
+     * so the site's own pager decides whether another page exists; the front page
+     * also repeats a few titles under different post ids.
+     */
     private fun listParse(response: Response): AnimesPage {
         val document = response.useAsJsoup()
         val animes = document.select(".th-item")
             .mapNotNull { it.toSAnime() }
             .distinctBy { it.url }
+            .distinctBy { it.title.lowercase() }
 
-        return AnimesPage(animes, animes.size >= PER_PAGE)
+        return AnimesPage(animes, document.hasNextPage())
     }
+
+    /** On the last page the pager keeps its markup but drops the link. */
+    private fun Document.hasNextPage(): Boolean =
+        selectFirst("#pagi-load a[href], .pnext a[href]") != null
 
     private fun Element.toSAnime(): SAnime? {
         val link = selectFirst("a[href]") ?: return null
@@ -377,7 +390,7 @@ class LordFilm :
     private fun String.parseQuality(): Int = QUALITY_REGEX.find(this)?.groupValues?.get(1)?.toIntOrNull() ?: 0
 
     companion object {
-        private const val PER_PAGE = 30
+        private const val PER_PAGE = 24
 
         private const val PREF_DOMAIN_KEY = "pref_domain"
         private const val PREF_DOMAIN_DEFAULT = "https://lordfilm.uno"
@@ -412,6 +425,7 @@ class LordFilm :
         private val TOKEN_REGEX = Regex("""'DLE-API-TOKEN'\s*:\s*'([^']+)'""")
         private val REQUEST_ID_REGEX = Regex("""'Iframe-Request-Id'\s*:\s*'([^']+)'""")
         private val CONTENT_ID_REGEX = Regex("""movie_id=(\d+)""")
+        private val PAGE_REGEX = Regex("""/page/(\d+)""")
         private val QUALITY_REGEX = Regex("""(\d+)p""")
         private val TITLE_PREFIX_REGEX = Regex("""^(?:Фильм|Сериал|Мультфильм|Мультсериал|Аниме)\s+""")
 
