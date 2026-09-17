@@ -297,10 +297,10 @@
   {
     "name": "Aniyomi: LordFilm",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.lordfilm",
-    "apk": "aniyomi-ru.lordfilm-v14.2.apk",
+    "apk": "aniyomi-ru.lordfilm-v14.3.apk",
     "lang": "ru",
-    "code": 2,
-    "version": "14.2",
+    "code": 3,
+    "version": "14.3",
     "nsfw": 0,
     "sources": [
       {
