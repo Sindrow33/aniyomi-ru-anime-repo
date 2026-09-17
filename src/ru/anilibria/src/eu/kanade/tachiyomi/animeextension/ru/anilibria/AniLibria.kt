@@ -70,7 +70,7 @@ class AniLibria :
         // Catalog endpoint returns a paginated object, the search endpoint a bare array.
         if (response.request.url.encodedPath.endsWith("/app/search/releases")) {
             val releases = response.parseAs<List<ReleaseDto>>()
-            return AnimesPage(releases.map { it.toSAnime(baseUrl) }, false)
+            return AnimesPage(releases.map { it.toSAnime(baseUrl) }.distinctBy { it.url }, false)
         }
         return catalogParse(response)
     }
@@ -179,7 +179,7 @@ class AniLibria :
             (it.currentPage ?: 1) < (it.totalPages ?: 1)
         } ?: false
 
-        return AnimesPage(result.data.map { it.toSAnime(baseUrl) }, hasNextPage)
+        return AnimesPage(result.data.map { it.toSAnime(baseUrl) }.distinctBy { it.url }, hasNextPage)
     }
 
     private fun Float.formatNumber(): String = if (this % 1f == 0f) toInt().toString() else toString()

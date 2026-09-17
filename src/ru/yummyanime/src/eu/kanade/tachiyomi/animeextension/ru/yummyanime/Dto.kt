@@ -24,7 +24,7 @@ class YummyAnimeDto(
     fun toSAnime() = SAnime.create().apply {
         title = this@YummyAnimeDto.title ?: ""
         url = animeUrl ?: ""
-        thumbnail_url = poster?.big?.let { if (it.startsWith("//")) "https:$it" else it }
+        thumbnail_url = poster?.bestUrl()
     }
 }
 
@@ -32,7 +32,13 @@ class YummyAnimeDto(
 class YummyPosterDto(
     val big: String? = null,
     val huge: String? = null,
-)
+    val mega: String? = null,
+    val fullsize: String? = null,
+) {
+    /** Prefer the largest variant; the API repeats the same file when it has no bigger one. */
+    fun bestUrl(): String? = (fullsize ?: mega ?: huge ?: big)
+        ?.let { if (it.startsWith("//")) "https:$it" else it }
+}
 
 @Serializable
 class YummyDetailsDto(

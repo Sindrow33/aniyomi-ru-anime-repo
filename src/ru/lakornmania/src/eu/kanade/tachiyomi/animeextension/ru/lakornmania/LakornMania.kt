@@ -350,10 +350,13 @@ class LakornMania :
         return SAnime.create().apply {
             url = runCatching { href.toHttpUrl().encodedPath }.getOrDefault(href)
             title = link.text().cleanTitle()
-            thumbnail_url = selectFirst(".item-main__img img")?.absUrl("src")
+            thumbnail_url = selectFirst(".item-main__img img")?.absUrl("src")?.fullSizePoster()
             genre = selectFirst(".item__label")?.text()?.trim()
         }
     }
+
+    /** Cards link the DLE thumbnail; the same file without `thumbs/` is the full poster. */
+    private fun String.fullSizePoster(): String = replace(THUMBS_SEGMENT, "/")
 
     /** The player sits in the first iframe, either as `src` or lazily as `data-src`. */
     private fun Document.playerUrl(): String? = select("iframe")
@@ -392,6 +395,8 @@ class LakornMania :
     private fun String.parseQuality(): Int = QUALITY_REGEX.find(this)?.groupValues?.get(1)?.toIntOrNull() ?: 0
 
     companion object {
+        private const val THUMBS_SEGMENT = "/thumbs/"
+
         private const val PER_PAGE = 18
 
         private const val PREF_QUALITY_KEY = "pref_quality"
@@ -414,6 +419,8 @@ class LakornMania :
         private val EPISODE_NUMBER_REGEX = Regex("""(\d+)-seriya""")
         private val QUALITY_REGEX = Regex("""(\d+)p""")
         private val URL_PARAMS_REGEX = Regex("""urlParams\s*=\s*'(.*?)'""")
-        private val TITLE_TAIL_REGEX = Regex("""\s*\(\d{4}\)\s*$""")
+
+        // Some listings carry a typo'd or ranged year, e.g. "(20265)" / "(2024-2025)".
+        private val TITLE_TAIL_REGEX = Regex("""\s*\(\d{4}\S*\)\s*$""")
     }
 }

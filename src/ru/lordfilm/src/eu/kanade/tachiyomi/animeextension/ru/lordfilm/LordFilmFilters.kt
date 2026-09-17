@@ -46,9 +46,9 @@ object LordFilmFilters {
         "Всё" to "",
         "Фильмы" to "/filmy",
         "Сериалы" to "/serialy",
-        "Мультфильмы" to "/mult",
-        "Премьеры" to "/osoboe",
-        "ТОП-50 за неделю" to "/top50",
+        "Мультфильмы" to "/multfilmy",
+        "Мультсериалы" to "/multserial",
+        "Аниме" to "/anime",
     )
 
     private val GENRES = listOf(
@@ -58,9 +58,7 @@ object LordFilmFilters {
         "Вестерн" to "/filmy/vestern",
         "Военный" to "/filmy/voennyj",
         "Детектив" to "/filmy/detektiv",
-        "Документальный" to "/filmy/dokumentalnyj",
         "Драма" to "/filmy/drama",
-        "Исторический" to "/filmy/istoricheskij",
         "Комедия" to "/filmy/komedija",
         "Короткометражка" to "/filmy/korotkometrazhka",
         "Криминал" to "/filmy/kriminal",
@@ -71,17 +69,10 @@ object LordFilmFilters {
         "Триллер" to "/filmy/triller",
         "Ужасы" to "/filmy/uzhasy",
         "Фантастика" to "/filmy/fantastika",
-        "Фэнтези" to "/filmy/fjentezi",
-        "Американские" to "/filmy/amerikanskie",
-        "Русские" to "/filmy/russkie",
-        "Советские" to "/filmy/sssr",
     )
 
     private val YEARS = listOf(
         "Любой" to "",
-        "Фильмы 2026" to "/filmy/2026",
-        "Фильмы 2025" to "/filmy/2025",
-        "Фильмы 2024" to "/filmy/2024",
         "Сериалы 2026" to "/serialy/serialy-2026",
         "Сериалы 2025" to "/serialy/serialy-2025",
     )

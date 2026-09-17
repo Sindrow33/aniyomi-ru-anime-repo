@@ -58,7 +58,9 @@ class AnimeGO :
 
     // ============================== Popular ===============================
 
-    override fun popularAnimeRequest(page: Int): Request = catalogRequest(page, AnimeGOFilters.SearchParams(sort = "popular"))
+    // The site's `popular` sort mirrors `aired`, which made this tab a copy of
+    // "latest"; `rating` is the one that actually ranks by popularity.
+    override fun popularAnimeRequest(page: Int): Request = catalogRequest(page, AnimeGOFilters.SearchParams(sort = "rating"))
 
     override fun popularAnimeParse(response: Response): AnimesPage = catalogParse(response)
 
@@ -343,9 +345,9 @@ class AnimeGO :
 
     private fun catalogParse(response: Response): AnimesPage {
         val document = response.useAsJsoup()
-        val items = document.select(".ani-list__item")
-
-        val animes = items.mapNotNull { it.toSAnime() }
+        val animes = document.select(".ani-list__item")
+            .mapNotNull { it.toSAnime() }
+            .distinctBy { it.url }
 
         return AnimesPage(animes, animes.size >= ITEMS_PER_PAGE)
     }

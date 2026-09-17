@@ -305,7 +305,10 @@ class AniMedia :
 
     private fun listParse(response: Response): AnimesPage {
         val document = response.useAsJsoup()
+        // The page also carries a "recommended" carousel built from the same card
+        // markup; including it duplicated titles already listed in the catalog.
         val animes = document.select("main a.new-anime__link, main a.new-series__link")
+            .filter { it.closest(".carousel") == null }
             .mapNotNull { it.toSAnime() }
             .distinctBy { it.url }
 

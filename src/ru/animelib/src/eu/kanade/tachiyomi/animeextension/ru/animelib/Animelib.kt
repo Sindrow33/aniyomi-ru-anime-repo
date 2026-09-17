@@ -316,7 +316,7 @@ class Animelib :
 
         val hasNext = !animeList.links?.next.isNullOrEmpty()
         val animes = animeList.data.map { it.toSAnime() }
-        return AnimesPage(animes, hasNext)
+        return AnimesPage(animes.distinctBy { it.url }, hasNext)
     }
 
     override fun popularAnimeRequest(page: Int): Request {

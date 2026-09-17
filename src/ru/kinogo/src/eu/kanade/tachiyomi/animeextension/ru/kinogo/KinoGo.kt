@@ -354,6 +354,8 @@ class KinoGo :
         private val LOCATION_REGEX = Regex("""(\d+)\s*сезон\s*(\d+)\s*серия""")
         private val UNICODE_REGEX = Regex("""\\u([0-9a-fA-F]{4})""")
         private val QUALITY_REGEX = Regex("""(\d+)p""")
-        private val TITLE_TAIL_REGEX = Regex("""\s*\(\d{4}\)\s*$""")
+
+        // Some listings carry a typo'd or ranged year, e.g. "(20265)" / "(2024-2025)".
+        private val TITLE_TAIL_REGEX = Regex("""\s*\(\d{4}\S*\)\s*$""")
     }
 }

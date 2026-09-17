@@ -286,7 +286,7 @@ class Bldub :
 
         val hasNext = animes.isNotEmpty() && (result.page + 1) * result.perpage < result.total
 
-        return AnimesPage(animes, hasNext)
+        return AnimesPage(animes.distinctBy { it.url }, hasNext)
     }
 
     private val SAnime.titleId: String

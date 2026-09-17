@@ -16,6 +16,7 @@ import keiyoushi.utils.addEditTextPreference
 import keiyoushi.utils.addListPreference
 import keiyoushi.utils.bodyString
 import keiyoushi.utils.getPreferencesLazy
+import keiyoushi.utils.parallelCatchingFlatMap
 import keiyoushi.utils.parseAs
 import keiyoushi.utils.useAsJsoup
 import okhttp3.FormBody
@@ -51,7 +52,9 @@ class LordFilm :
 
     // ============================== Popular ===============================
 
-    override fun popularAnimeRequest(page: Int): Request = listRequest("/top50", page)
+    // The site dropped its rating charts, so films (its largest, hand-curated
+    // section) stand in for "popular" while the front page stays as "latest".
+    override fun popularAnimeRequest(page: Int): Request = listRequest("/filmy", page)
 
     override fun popularAnimeParse(response: Response): AnimesPage = listParse(response)
 
@@ -85,11 +88,18 @@ class LordFilm :
 
         return SAnime.create().apply {
             url = response.request.url.encodedPath
-            title = info["Название"] ?: document.selectFirst("h1")?.text()?.cleanTitle().orEmpty()
+            // The info table's "Название" is the original-language title, so the
+            // heading is what actually matches the card the user tapped.
+            title = document.selectFirst("h1")?.text()?.cleanTitle()?.takeIf { it.isNotBlank() }
+                ?: info["Название"].orEmpty()
             thumbnail_url = document.selectFirst(".fposter img, .fleft img")?.absUrl("src")
             author = info["Режиссер"]
             artist = info["Актеры"]?.split(',')?.take(4)?.joinToString(", ") { it.trim() }
-            genre = info["Категории"]?.split('/')?.joinToString(", ") { it.trim() }
+            genre = (info["Жанр"] ?: info["Категории"])
+                ?.split('/', ',')
+                ?.map { it.trim() }
+                ?.filter { it.isNotBlank() }
+                ?.joinToString(", ")
             status = SAnime.COMPLETED
             description = buildString {
                 document.selectFirst(".fdesc")?.text()?.trim()
@@ -111,28 +121,28 @@ class LordFilm :
 
     override suspend fun getEpisodeList(anime: SAnime): List<SEpisode> {
         val document = client.newCall(episodeListRequest(anime)).awaitSuccess().useAsJsoup()
-        val embed = document.embedUrl()
-            ?: return listOf(singleEpisode(anime.url))
+        val embed = document.embedUrl() ?: return listOf(singleEpisode(anime.url))
 
-        val player = client.newCall(GET(embed, playerHeaders())).awaitSuccess().bodyString()
-        val seasons = player.seasons()
+        val session = playerSession(embed)
+        val episodes = session.episodes()
 
-        // Movies carry no season list — the embed itself is the whole video.
-        if (seasons.isEmpty()) return listOf(singleEpisode(anime.url))
+        // A single unnamed entry means the content is a movie, not a series.
+        if (episodes.size <= 1) return listOf(singleEpisode(anime.url))
 
-        return seasons
-            .sortedByDescending { it.season }
-            .flatMap { season ->
-                season.episodes.map { episode ->
-                    val number = episode.episode.toFloatOrNull() ?: 0f
+        return episodes
+            .sortedWith(compareByDescending<EpisodeDto> { it.season?.order ?: 1 }.thenByDescending { it.order })
+            .map { episode ->
+                val season = episode.season?.order ?: 1
 
-                    SEpisode.create().apply {
-                        url = "$embed#${season.season}:${episode.episode}"
-                        episode_number = season.season * 1000f + number
-                        name = "${season.season} сезон, ${number.toInt()} серия"
-                        scanlator = episode.duration.takeIf { it > 0 }?.toDuration()
-                    }
-                }.sortedByDescending { it.episode_number }
+                SEpisode.create().apply {
+                    url = "${anime.url}#${episode.id}"
+                    episode_number = season * 1000f + episode.order
+                    name = "$season сезон, ${episode.order} серия"
+                    scanlator = episode.episodeVariants
+                        .firstOrNull { it.duration > 0 }
+                        ?.duration
+                        ?.toDuration()
+                }
             }
     }
 
@@ -141,40 +151,72 @@ class LordFilm :
     // ============================ Video Links =============================
 
     override suspend fun getVideoList(episode: SEpisode): List<Video> {
-        val embed = episode.url.substringBefore('#')
-        val target = episode.url.substringAfter('#', "")
+        val path = episode.url.substringBefore('#')
+        val episodeId = episode.url.substringAfter('#', "").toLongOrNull()
 
-        val master = if (embed.startsWith("http")) {
-            val player = client.newCall(GET(embed, playerHeaders())).awaitSuccess().bodyString()
+        val document = client.newCall(GET(baseUrl + path, headers)).awaitSuccess().useAsJsoup()
+        val embed = document.embedUrl() ?: throw Exception("Плеер не найден на странице")
 
-            if (target.isBlank()) {
-                player.movieHls()
-            } else {
-                val season = target.substringBefore(':').toIntOrNull()
-                val number = target.substringAfter(':')
+        val session = playerSession(embed)
+        val episodes = session.episodes()
+        val wanted = episodeId?.let { id -> episodes.firstOrNull { it.id == id } }
+            ?: episodes.firstOrNull()
+            ?: throw Exception("Серия не найдена в плейлисте")
 
-                player.seasons()
-                    .firstOrNull { it.season == season }
-                    ?.episodes
-                    ?.firstOrNull { it.episode == number }
-                    ?.hls
-            }
-        } else {
-            val document = client.newCall(GET(baseUrl + embed, headers)).awaitSuccess().useAsJsoup()
-            val url = document.embedUrl() ?: throw Exception("Плеер не найден на странице")
+        // Every dub is a separate variant with its own playlist, so all of them are
+        // offered; some also expose subtitle tracks inside their master playlist.
+        val variants = wanted.episodeVariants.filter { !it.filepath.isNullOrBlank() }
+        if (variants.isEmpty()) throw Exception("Ссылка на видео не найдена")
 
-            client.newCall(GET(url, playerHeaders())).awaitSuccess().bodyString().movieHls()
+        val videos = variants.parallelCatchingFlatMap { variant ->
+            val master = variant.filepath!!.trimEnd('/') + "/master.m3u8"
+            val label = variant.title?.takeIf { it.isNotBlank() && it != "Default" } ?: "Оригинал"
+
+            playlistUtils.extractFromHls(
+                playlistUrl = master,
+                referer = "$PLAYER_ORIGIN/",
+                masterHeaders = session.headers,
+                videoHeaders = session.headers,
+                videoNameGen = { quality -> "$label - $quality" },
+            ).ifEmpty { listOf(Video(master, label, master, headers = session.headers)) }
         }
-
-        if (master.isNullOrBlank()) throw Exception("Ссылка на видео не найдена")
-
-        val videos = playlistUtils.extractFromHls(master, referer = "$PLAYER_HOST/")
-            .ifEmpty { listOf(Video(master, "Авто", master, headers = playerHeaders())) }
 
         return videos.sortedWith(
             compareByDescending<Video> { it.videoTitle.parseQuality() == preferredQuality }
                 .thenByDescending { it.videoTitle.parseQuality() },
         )
+    }
+
+    /**
+     * The balancer iframe embeds a one-shot API token plus a request id; both are
+     * required on every catalogue call and expire with the page, so they are read
+     * fresh each time instead of being cached.
+     */
+    private suspend fun playerSession(embed: String): PlayerSession {
+        val page = client.newCall(GET(embed, playerHeaders())).awaitSuccess().bodyString()
+
+        val token = TOKEN_REGEX.find(page)?.groupValues?.get(1)
+            ?: throw Exception("Плеер не выдал токен")
+        val requestId = REQUEST_ID_REGEX.find(page)?.groupValues?.get(1).orEmpty()
+        val contentId = CONTENT_ID_REGEX.find(embed)?.groupValues?.get(1)
+            ?: throw Exception("Не удалось определить id контента")
+
+        val sessionHeaders = headers.newBuilder()
+            .set("Referer", "$baseUrl/")
+            .set("DLE-API-TOKEN", token)
+            .set("X-Has-Token", "true")
+            .apply { if (requestId.isNotBlank()) set("Iframe-Request-Id", requestId) }
+            .build()
+
+        return PlayerSession(contentId, sessionHeaders)
+    }
+
+    private suspend fun PlayerSession.episodes(): List<EpisodeDto> {
+        val url = "$CATALOG_API/episodes".toHttpUrl().newBuilder()
+            .addQueryParameter("content-id", contentId)
+            .build()
+
+        return client.newCall(GET(url, headers)).awaitSuccess().parseAs<List<EpisodeDto>>()
     }
 
     // ============================== Settings ==============================
@@ -268,35 +310,11 @@ class LordFilm :
         name = "Фильм"
     }
 
-    /** The main player is the only iframe served straight in the markup. */
+    /** The balancer iframe is the only player served straight in the markup. */
     private fun Document.embedUrl(): String? = select("iframe")
-        .map { it.attr("src") }
-        .firstOrNull { it.contains("/embed/", ignoreCase = true) }
+        .map { it.attr("src").ifBlank { it.attr("data-src") } }
+        .firstOrNull { it.contains(BALANCER_MARKER, ignoreCase = true) }
         ?.toAbsoluteUrl()
-
-    /** Series players inline a `seasons:[...]` array holding every episode's hls link. */
-    private fun String.seasons(): List<Season> {
-        val marker = indexOf(SEASONS_MARKER).takeIf { it >= 0 } ?: return emptyList()
-        val start = indexOf('[', marker)
-        var depth = 0
-
-        for (index in start until length) {
-            when (this[index]) {
-                '[' -> depth++
-                ']' -> {
-                    depth--
-                    if (depth == 0) {
-                        return runCatching { substring(start, index + 1).parseAs<List<Season>>() }
-                            .getOrDefault(emptyList())
-                    }
-                }
-            }
-        }
-
-        return emptyList()
-    }
-
-    private fun String.movieHls(): String? = HLS_REGEX.find(this)?.groupValues?.get(1)
 
     private fun playerHeaders() = headers.newBuilder()
         .set("Referer", "$baseUrl/")
@@ -311,8 +329,10 @@ class LordFilm :
 
     private fun String.cleanTitle(): String = trim()
         .substringBefore(" смотреть онлайн")
+        .replace(TITLE_PREFIX_REGEX, "")
         .replace(TITLE_TAIL_REGEX, "")
         .trim()
+        .trim('«', '»', ' ')
 
     private fun String.toAbsoluteUrl(): String = when {
         startsWith("//") -> "https:$this"
@@ -329,25 +349,32 @@ class LordFilm :
         private const val PER_PAGE = 30
 
         private const val PREF_DOMAIN_KEY = "pref_domain"
-        private const val PREF_DOMAIN_DEFAULT = "https://mg.lordfilm.md"
+        private const val PREF_DOMAIN_DEFAULT = "https://lordfilm.uno"
 
         private const val PREF_QUALITY_KEY = "pref_quality"
         private const val PREF_QUALITY_DEFAULT = "1080p"
         private val PREF_QUALITY_ENTRIES = listOf("2160p", "1080p", "720p", "480p", "360p")
 
-        private const val PLAYER_HOST = "https://api.ortified.ws"
-        private const val SEASONS_MARKER = "seasons:"
+        private const val PLAYER_ORIGIN = "https://player.temptcdn.com"
+        private const val BALANCER_MARKER = "/balancer-api/iframe"
+        private const val CATALOG_API = "$PLAYER_ORIGIN/balancer-api/proxy/playlists/catalog-api"
 
         private val DETAIL_KEYS = listOf(
-            "Оригинальное название",
+            "Название",
             "Год выхода",
             "Страна",
             "Качество",
+            "Озвучка",
             "Режиссер",
         )
 
-        private val HLS_REGEX = Regex("""hls:\s*"([^"]+)"""")
+        private val TOKEN_REGEX = Regex("""'DLE-API-TOKEN'\s*:\s*'([^']+)'""")
+        private val REQUEST_ID_REGEX = Regex("""'Iframe-Request-Id'\s*:\s*'([^']+)'""")
+        private val CONTENT_ID_REGEX = Regex("""movie_id=(\d+)""")
         private val QUALITY_REGEX = Regex("""(\d+)p""")
-        private val TITLE_TAIL_REGEX = Regex("""\s*\(\d{4}\)\s*$""")
+        private val TITLE_PREFIX_REGEX = Regex("""^(?:Фильм|Сериал|Мультфильм|Мультсериал|Аниме)\s+""")
+
+        // Some listings carry a typo'd or ranged year, e.g. "(20265)" / "(2024-2025)".
+        private val TITLE_TAIL_REGEX = Regex("""\s*\(\d{4}\S*\)\s*$""")
     }
 }

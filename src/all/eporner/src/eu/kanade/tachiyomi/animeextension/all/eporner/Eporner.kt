@@ -202,7 +202,7 @@ class Eporner :
         val result = response.parseAs<SearchResponse>()
         val animes = result.videos.map { it.toSAnime() }
 
-        return AnimesPage(animes, result.page < result.total_pages)
+        return AnimesPage(animes.distinctBy { it.url }, result.page < result.total_pages)
     }
 
     private fun VideoItem.toSAnime(): SAnime = SAnime.create().apply {

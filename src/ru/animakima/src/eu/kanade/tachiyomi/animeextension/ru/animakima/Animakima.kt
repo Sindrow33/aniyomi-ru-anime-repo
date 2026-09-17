@@ -402,8 +402,8 @@ class Animakima :
         return SAnime.create().apply {
             url = path
             title = link.text().unquote()
-            thumbnail_url = selectFirst("img.card-image")?.absUrl("src")?.takeIf { it.isNotBlank() }
-                ?: parent()?.selectFirst("img.card-image")?.absUrl("src")?.takeIf { it.isNotBlank() }
+            thumbnail_url = selectFirst("img.card-image")?.absUrl("src")?.fullSizePoster()?.takeIf { it.isNotBlank() }
+                ?: parent()?.selectFirst("img.card-image")?.absUrl("src")?.fullSizePoster()?.takeIf { it.isNotBlank() }
         }
     }
 
@@ -416,9 +416,13 @@ class Animakima :
             title = link.text().unquote()
             thumbnail_url = parent()?.parent()?.selectFirst("img.card-image")
                 ?.absUrl("src")
+                ?.fullSizePoster()
                 ?.takeIf { it.isNotBlank() }
         }
     }
+
+    /** Cards point at the 178x256 resize; dropping that segment yields the full poster. */
+    private fun String.fullSizePoster(): String = RESIZE_SEGMENT.replace(this, "/")
 
     private fun apiRequest(action: String, vararg fields: Pair<String, String>): Request {
         val body = MultipartBody.Builder()
@@ -450,6 +454,9 @@ class Animakima :
     private fun String.parseQuality(): Int = QUALITY_REGEX.find(this)?.groupValues?.get(1)?.toIntOrNull() ?: 0
 
     companion object {
+        /** Card images are served through a `/<width>-<height>/` resize segment. */
+        private val RESIZE_SEGMENT = Regex("/\\d{2,4}-\\d{2,4}/")
+
         private const val DEFAULT_PATH = "/top/japan/"
         private const val PAGE_SIZE = 48
         private val SINGLE_PAGE_PATHS = listOf("/top/", "/last/", "/announcement/")

@@ -22,6 +22,7 @@ import keiyoushi.utils.parseAs
 import keiyoushi.utils.useAsJsoup
 import okhttp3.FormBody
 import okhttp3.Headers
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import okhttp3.Response
 
@@ -58,15 +59,22 @@ class YummyAnime :
 
     // ============================== Popular ===============================
 
-    override fun popularAnimeRequest(page: Int): Request {
-        val offset = (page - 1) * 20
-        return GET("$apiUrl/anime/catalog?limit=20&offset=$offset", headers)
+    private fun catalogRequest(page: Int): Request {
+        val url = "$apiUrl/anime/catalog".toHttpUrl().newBuilder()
+            .addQueryParameter("limit", PAGE_SIZE.toString())
+            .addQueryParameter("offset", ((page - 1) * PAGE_SIZE).toString())
+            .build()
+
+        return GET(url, headers)
     }
+
+    override fun popularAnimeRequest(page: Int): Request = catalogRequest(page)
 
     override fun popularAnimeParse(response: Response): AnimesPage {
         val data = response.parseAs<YummyResponse<YummyCatalogDto>>().response
-        val animes = data?.data?.map { it.toSAnime() } ?: emptyList()
-        return AnimesPage(animes, animes.size == 20)
+        val animes = data?.data?.map { it.toSAnime() }?.distinctBy { it.url } ?: emptyList()
+
+        return AnimesPage(animes, animes.size >= PAGE_SIZE)
     }
 
     // =============================== Latest ===============================
@@ -74,19 +82,35 @@ class YummyAnime :
     override fun latestUpdatesRequest(page: Int): Request = GET("$apiUrl/anime/schedule", headers)
 
     override fun latestUpdatesParse(response: Response): AnimesPage {
+        // The schedule lists a title once per airing slot, so the same show repeats.
         val data = response.parseAs<YummyResponse<List<YummyAnimeDto>>>().response
-        val animes = data?.map { it.toSAnime() } ?: emptyList()
+        val animes = data?.map { it.toSAnime() }?.distinctBy { it.url } ?: emptyList()
+
         return AnimesPage(animes, false)
     }
 
     // =============================== Search ===============================
 
-    override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request = GET("$apiUrl/search?q=$query", headers)
+    override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
+        if (query.isBlank()) return catalogRequest(page)
+
+        val url = "$apiUrl/search".toHttpUrl().newBuilder()
+            .addQueryParameter("q", query)
+            .addQueryParameter("limit", PAGE_SIZE.toString())
+            .addQueryParameter("offset", ((page - 1) * PAGE_SIZE).toString())
+            .build()
+
+        return GET(url, headers)
+    }
 
     override fun searchAnimeParse(response: Response): AnimesPage {
+        // Blank queries fall back to the catalog, which answers with a paginated object.
+        if (!response.request.url.encodedPath.endsWith("/search")) return popularAnimeParse(response)
+
         val data = response.parseAs<YummyResponse<List<YummyAnimeDto>>>().response
-        val animes = data?.map { it.toSAnime() } ?: emptyList()
-        return AnimesPage(animes, false)
+        val animes = data?.map { it.toSAnime() }?.distinctBy { it.url } ?: emptyList()
+
+        return AnimesPage(animes, animes.size >= PAGE_SIZE)
     }
 
     // =========================== Anime Details ============================
@@ -409,6 +433,8 @@ class YummyAnime :
     private fun String.toOrigin(): String = ORIGIN_REGEX.find(this)?.groupValues?.get(1) ?: this
 
     companion object {
+        private const val PAGE_SIZE = 20
+
         private const val PREF_QUALITY_KEY = "pref_quality"
         private const val PREF_QUALITY_DEFAULT = "720"
 

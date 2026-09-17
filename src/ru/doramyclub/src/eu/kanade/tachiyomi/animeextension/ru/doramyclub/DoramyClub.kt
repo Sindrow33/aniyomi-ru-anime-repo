@@ -92,7 +92,7 @@ class DoramyClub :
     override fun searchAnimeParse(response: Response): AnimesPage {
         if (response.request.url.queryParameter("mod") == "anime_search") {
             val result = response.parseAs<SearchResponse>()
-            return AnimesPage(result.items.map { it.toSAnime() }, false)
+            return AnimesPage(result.items.map { it.toSAnime() }.distinctBy { it.url }, false)
         }
 
         return filterParse(response)
@@ -378,7 +378,7 @@ class DoramyClub :
     private fun filterParse(response: Response): AnimesPage {
         val result = response.parseAs<FilterResponse>()
 
-        return AnimesPage(result.items.map { it.toSAnime() }, result.hasMore)
+        return AnimesPage(result.items.map { it.toSAnime() }.distinctBy { it.url }, result.hasMore)
     }
 
     private fun FilterItem.toSAnime(): SAnime = SAnime.create().apply {
@@ -412,6 +412,8 @@ class DoramyClub :
         private val EPISODE_NUMBER_REGEX = Regex("""episode-(\d+)""")
         private val QUALITY_REGEX = Regex("""(\d+)p""")
         private val URL_PARAMS_REGEX = Regex("""urlParams\s*=\s*'(.*?)'""")
-        private val TITLE_TAIL_REGEX = Regex("""\s*\(\d{4}\)\s*$""")
+
+        // Some listings carry a typo'd or ranged year, e.g. "(20265)" / "(2024-2025)".
+        private val TITLE_TAIL_REGEX = Regex("""\s*\(\d{4}\S*\)\s*$""")
     }
 }
