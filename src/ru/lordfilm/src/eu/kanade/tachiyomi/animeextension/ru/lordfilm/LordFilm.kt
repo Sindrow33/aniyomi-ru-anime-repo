@@ -155,7 +155,7 @@ class LordFilm :
         val episodeId = episode.url.substringAfter('#', "").toLongOrNull()
 
         val document = client.newCall(GET(baseUrl + path, headers)).awaitSuccess().useAsJsoup()
-        val embed = document.embedUrl() ?: throw Exception("Плеер не найден на странице")
+        val embed = document.embedUrl() ?: throw Exception(document.playerError())
 
         val session = playerSession(embed)
         val episodes = session.episodes()
@@ -169,7 +169,12 @@ class LordFilm :
         if (variants.isEmpty()) throw Exception("Ссылка на видео не найдена")
 
         val videos = variants.parallelCatchingFlatMap { variant ->
-            val master = variant.filepath!!.trimEnd('/') + "/master.m3u8"
+            // The balancer answers with a 307 to the edge node that actually serves the
+            // playlist; its relative stream URLs only resolve against that final host,
+            // so the redirect is followed here instead of inside the HLS extractor.
+            val master = client.newCall(GET(variant.filepath!!, session.headers))
+                .awaitSuccess()
+                .request.url.toString()
             val label = variant.title?.takeIf { it.isNotBlank() && it != "Default" } ?: "Оригинал"
 
             playlistUtils.extractFromHls(
@@ -227,7 +232,8 @@ class LordFilm :
             default = PREF_DOMAIN_DEFAULT,
             title = "Домен сайта",
             summary = "%s\nЗеркало на случай блокировки.",
-            dialogMessage = "По умолчанию: $PREF_DOMAIN_DEFAULT",
+            dialogMessage = "По умолчанию: $PREF_DOMAIN_DEFAULT\n" +
+                "Рабочие зеркала: lordfilm.uno, lordfilm.xin",
             restartRequired = true,
         )
 
@@ -241,14 +247,27 @@ class LordFilm :
         )
     }
 
+    /**
+     * The site hops between mirrors and abandons the old ones, so a domain saved in
+     * the preferences outlives the host it points at. Mirrors known to be dead are
+     * migrated back to the default instead of failing every request.
+     */
     private fun domain(): String {
         val raw = preferences.getString(PREF_DOMAIN_KEY, PREF_DOMAIN_DEFAULT)!!.trim().trimEnd('/')
-
-        return when {
+        val url = when {
             raw.isBlank() -> PREF_DOMAIN_DEFAULT
             raw.startsWith("http") -> raw
             else -> "https://$raw"
         }
+        val host = runCatching { url.toHttpUrl().host }.getOrNull().orEmpty()
+
+        if (DEAD_MIRRORS.any { host == it || host.endsWith(".$it") }) {
+            preferences.edit().putString(PREF_DOMAIN_KEY, PREF_DOMAIN_DEFAULT).apply()
+
+            return PREF_DOMAIN_DEFAULT
+        }
+
+        return url
     }
 
     private val preferredQuality: Int
@@ -316,6 +335,18 @@ class LordFilm :
         .firstOrNull { it.contains(BALANCER_MARKER, ignoreCase = true) }
         ?.toAbsoluteUrl()
 
+    /**
+     * Some mirrors run a different template whose player is fetched by an ajax call
+     * to hosts that no longer serve anything, so they are named explicitly rather
+     * than reported as a generic parsing failure.
+     */
+    private fun Document.playerError(): String = if (selectFirst(FOREIGN_TEMPLATE_MARKER) != null) {
+        "Это зеркало ($baseUrl) использует другой плеер и не поддерживается. " +
+            "Укажите в настройках расширения домен $PREF_DOMAIN_DEFAULT"
+    } else {
+        "Плеер не найден на странице"
+    }
+
     private fun playerHeaders() = headers.newBuilder()
         .set("Referer", "$baseUrl/")
         .build()
@@ -351,12 +382,22 @@ class LordFilm :
         private const val PREF_DOMAIN_KEY = "pref_domain"
         private const val PREF_DOMAIN_DEFAULT = "https://lordfilm.uno"
 
+        /** Mirrors that are gone for good or serve the unsupported template. */
+        private val DEAD_MIRRORS = listOf(
+            "lordfilm.md",
+            "lordfilm.fi",
+            "lordfilm.cx",
+            "lordfilm.top",
+            "lordfilm.bar",
+        )
+
         private const val PREF_QUALITY_KEY = "pref_quality"
         private const val PREF_QUALITY_DEFAULT = "1080p"
         private val PREF_QUALITY_ENTRIES = listOf("2160p", "1080p", "720p", "480p", "360p")
 
         private const val PLAYER_ORIGIN = "https://player.temptcdn.com"
         private const val BALANCER_MARKER = "/balancer-api/iframe"
+        private const val FOREIGN_TEMPLATE_MARKER = ".lf-player-gate, .lf-player-on-demand"
         private const val CATALOG_API = "$PLAYER_ORIGIN/balancer-api/proxy/playlists/catalog-api"
 
         private val DETAIL_KEYS = listOf(
