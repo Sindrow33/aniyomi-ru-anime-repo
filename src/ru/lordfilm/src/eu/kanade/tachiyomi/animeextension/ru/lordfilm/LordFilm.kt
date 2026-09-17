@@ -62,8 +62,7 @@ class LordFilm :
 
     // The front page repeats titles and has no pager, so the news feed is used; it
     // is the only listing that pages with `cstart` instead of a path segment.
-    override fun latestUpdatesRequest(page: Int): Request =
-        GET("$baseUrl/index.php?do=lastnews&cstart=$page", headers)
+    override fun latestUpdatesRequest(page: Int): Request = GET("$baseUrl/index.php?do=lastnews&cstart=$page", headers)
 
     override fun latestUpdatesParse(response: Response): AnimesPage = listParse(response)
 
@@ -319,8 +318,7 @@ class LordFilm :
     }
 
     /** On the last page the pager keeps its markup but drops the link. */
-    private fun Document.hasNextPage(): Boolean =
-        selectFirst("#pagi-load a[href], .pnext a[href]") != null
+    private fun Document.hasNextPage(): Boolean = selectFirst("#pagi-load a[href], .pnext a[href]") != null
 
     private fun Element.toSAnime(): SAnime? {
         val link = selectFirst("a[href]") ?: return null
