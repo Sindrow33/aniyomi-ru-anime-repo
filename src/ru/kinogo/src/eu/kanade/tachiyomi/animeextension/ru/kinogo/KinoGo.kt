@@ -121,7 +121,9 @@ class KinoGo :
         val entries = client.newCall(GET(embed, headers)).awaitSuccess().bodyString().playlistEntries()
 
         // Movies list voice-overs only; series repeat every voice-over per episode.
-        val episodes = entries.mapNotNull { it.parseLocation() }.distinct().sortedDescending()
+        val episodes = entries.mapNotNull { it.parseLocation() }
+            .distinct()
+            .sortedWith(compareByDescending<Pair<Int, Int>> { it.first }.thenByDescending { it.second })
         if (episodes.isEmpty()) return listOf(singleEpisode(anime.url))
 
         return episodes.map { (season, number) ->
