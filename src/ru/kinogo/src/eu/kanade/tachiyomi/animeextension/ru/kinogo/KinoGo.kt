@@ -45,9 +45,13 @@ class KinoGo :
 
     // The site sits behind a Cloudflare managed challenge; the interceptor
     // solves it in a WebView and reuses the clearance cookies afterwards.
-    override val client = network.client.newBuilder()
-        .addInterceptor(CloudflareInterceptor(network.client, USER_AGENT))
-        .build()
+    // Built lazily: the interceptor touches android.webkit, which is absent
+    // from the JVM the repository inspector runs sources under.
+    override val client by lazy {
+        network.client.newBuilder()
+            .addInterceptor(CloudflareInterceptor(network.client, USER_AGENT))
+            .build()
+    }
 
     private val playlistUtils by lazy { PlaylistUtils(client, headers) }
 
