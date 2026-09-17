@@ -2,10 +2,10 @@
   {
     "name": "Aniyomi: AniLibria",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.anilibria",
-    "apk": "aniyomi-ru.anilibria-v14.2.apk",
+    "apk": "aniyomi-ru.anilibria-v14.3.apk",
     "lang": "ru",
-    "code": 2,
-    "version": "14.2",
+    "code": 3,
+    "version": "14.3",
     "nsfw": 0,
     "sources": [
       {
@@ -20,10 +20,10 @@
   {
     "name": "Aniyomi: AniMedia",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.animedia",
-    "apk": "aniyomi-ru.animedia-v14.2.apk",
+    "apk": "aniyomi-ru.animedia-v14.3.apk",
     "lang": "ru",
-    "code": 2,
-    "version": "14.2",
+    "code": 3,
+    "version": "14.3",
     "nsfw": 0,
     "sources": [
       {
@@ -38,10 +38,10 @@
   {
     "name": "Aniyomi: AniSprout",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.anisprout",
-    "apk": "aniyomi-ru.anisprout-v14.2.apk",
+    "apk": "aniyomi-ru.anisprout-v14.3.apk",
     "lang": "ru",
-    "code": 2,
-    "version": "14.2",
+    "code": 3,
+    "version": "14.3",
     "nsfw": 0,
     "sources": [
       {
@@ -56,10 +56,10 @@
   {
     "name": "Aniyomi: Animakima",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.animakima",
-    "apk": "aniyomi-ru.animakima-v14.2.apk",
+    "apk": "aniyomi-ru.animakima-v14.3.apk",
     "lang": "ru",
-    "code": 2,
-    "version": "14.2",
+    "code": 3,
+    "version": "14.3",
     "nsfw": 0,
     "sources": [
       {
@@ -74,10 +74,10 @@
   {
     "name": "Aniyomi: AnimeGO",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.animego",
-    "apk": "aniyomi-ru.animego-v14.2.apk",
+    "apk": "aniyomi-ru.animego-v14.3.apk",
     "lang": "ru",
-    "code": 2,
-    "version": "14.2",
+    "code": 3,
+    "version": "14.3",
     "nsfw": 0,
     "sources": [
       {
@@ -110,10 +110,10 @@
   {
     "name": "Aniyomi: Animelib",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.animelib",
-    "apk": "aniyomi-ru.animelib-v14.17.apk",
+    "apk": "aniyomi-ru.animelib-v14.18.apk",
     "lang": "ru",
-    "code": 17,
-    "version": "14.17",
+    "code": 18,
+    "version": "14.18",
     "nsfw": 1,
     "sources": [
       {
@@ -153,10 +153,10 @@
   {
     "name": "Aniyomi: BLDUB",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.bldub",
-    "apk": "aniyomi-ru.bldub-v14.1.apk",
+    "apk": "aniyomi-ru.bldub-v14.2.apk",
     "lang": "ru",
-    "code": 1,
-    "version": "14.1",
+    "code": 2,
+    "version": "14.2",
     "nsfw": 0,
     "sources": [
       {
@@ -189,10 +189,10 @@
   {
     "name": "Aniyomi: DoramyClub",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.doramyclub",
-    "apk": "aniyomi-ru.doramyclub-v14.1.apk",
+    "apk": "aniyomi-ru.doramyclub-v14.2.apk",
     "lang": "ru",
-    "code": 1,
-    "version": "14.1",
+    "code": 2,
+    "version": "14.2",
     "nsfw": 0,
     "sources": [
       {
@@ -207,10 +207,10 @@
   {
     "name": "Aniyomi: Eporner",
     "pkg": "eu.kanade.tachiyomi.animeextension.all.eporner",
-    "apk": "aniyomi-all.eporner-v14.1.apk",
+    "apk": "aniyomi-all.eporner-v14.2.apk",
     "lang": "all",
-    "code": 1,
-    "version": "14.1",
+    "code": 2,
+    "version": "14.2",
     "nsfw": 1,
     "sources": [
       {
@@ -261,10 +261,10 @@
   {
     "name": "Aniyomi: KinoGo",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.kinogo",
-    "apk": "aniyomi-ru.kinogo-v14.1.apk",
+    "apk": "aniyomi-ru.kinogo-v14.2.apk",
     "lang": "ru",
-    "code": 1,
-    "version": "14.1",
+    "code": 2,
+    "version": "14.2",
     "nsfw": 0,
     "sources": [
       {
@@ -279,10 +279,10 @@
   {
     "name": "Aniyomi: LakornMania",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.lakornmania",
-    "apk": "aniyomi-ru.lakornmania-v14.1.apk",
+    "apk": "aniyomi-ru.lakornmania-v14.2.apk",
     "lang": "ru",
-    "code": 1,
-    "version": "14.1",
+    "code": 2,
+    "version": "14.2",
     "nsfw": 0,
     "sources": [
       {
@@ -297,17 +297,17 @@
   {
     "name": "Aniyomi: LordFilm",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.lordfilm",
-    "apk": "aniyomi-ru.lordfilm-v14.1.apk",
+    "apk": "aniyomi-ru.lordfilm-v14.2.apk",
     "lang": "ru",
-    "code": 1,
-    "version": "14.1",
+    "code": 2,
+    "version": "14.2",
     "nsfw": 0,
     "sources": [
       {
         "name": "LordFilm",
         "lang": "ru",
         "id": "5708867433804223518",
-        "baseUrl": "https://mg.lordfilm.md",
+        "baseUrl": "https://lordfilm.uno",
         "versionId": 1
       }
     ]
@@ -351,10 +351,10 @@
   {
     "name": "Aniyomi: YummyAnime",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.yummyanime",
-    "apk": "aniyomi-ru.yummyanime-v14.3.apk",
+    "apk": "aniyomi-ru.yummyanime-v14.4.apk",
     "lang": "ru",
-    "code": 3,
-    "version": "14.3",
+    "code": 4,
+    "version": "14.4",
     "nsfw": 0,
     "sources": [
       {
