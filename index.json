@@ -277,6 +277,24 @@
     ]
   },
   {
+    "name": "Aniyomi: KinoGo",
+    "pkg": "eu.kanade.tachiyomi.animeextension.ru.kinogo",
+    "apk": "aniyomi-ru.kinogo-v14.1.apk",
+    "lang": "ru",
+    "code": 1,
+    "version": "14.1",
+    "nsfw": 0,
+    "sources": [
+      {
+        "name": "KinoGo",
+        "lang": "ru",
+        "id": "1624831162014340295",
+        "baseUrl": "https://kinogo.ec",
+        "versionId": 1
+      }
+    ]
+  },
+  {
     "name": "Aniyomi: LakornMania",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.lakornmania",
     "apk": "aniyomi-ru.lakornmania-v14.1.apk",
