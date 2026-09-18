@@ -173,6 +173,7 @@ class LordFilmMG :
             playlistUtils
                 .extractFromHls(
                     playlistUrl = match.value,
+                    masterHeaders = headers,
                     referer = "$baseUrl/",
                     videoHeaders = headers,
                     videoNameGen = { quality: String -> "HLS - $quality" },
