@@ -36,7 +36,6 @@ import org.jsoup.nodes.Element
 class LordFilmMG :
     AnimeHttpLegacySource(),
     ConfigurableAnimeSource {
-
     override val name = "LordFilmMG"
 
     override val baseUrl by lazy { domain() }
@@ -49,7 +48,8 @@ class LordFilmMG :
 
     private val playlistUtils by lazy { PlaylistUtils(client, headers) }
 
-    override fun headersBuilder() = super.headersBuilder()
+    override fun headersBuilder() = super
+        .headersBuilder()
         .set("Referer", "$baseUrl/")
         .set(
             "User-Agent",
@@ -67,14 +67,17 @@ class LordFilmMG :
     // =============================== Latest ===============================
 
     // Лента новинок DLE — единственный список с пагинацией cstart.
-    override fun latestUpdatesRequest(page: Int): Request =
-        GET("$baseUrl/index.php?do=lastnews&cstart=$page", headers)
+    override fun latestUpdatesRequest(page: Int): Request = GET("$baseUrl/index.php?do=lastnews&cstart=$page", headers)
 
     override fun latestUpdatesParse(response: Response): AnimesPage = listParse(response)
 
     // =============================== Search ===============================
 
-    override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
+    override fun searchAnimeRequest(
+        page: Int,
+        query: String,
+        filters: AnimeFilterList,
+    ): Request {
         if (query.isNotBlank()) return searchRequest(query, page)
 
         return listRequest(LordFilmMGFilters.getSearchParameters(filters).path, page)
@@ -96,28 +99,37 @@ class LordFilmMG :
 
         return SAnime.create().apply {
             url = response.request.url.encodedPath
-            title = document.selectFirst("h1")?.text()?.cleanTitle()?.takeIf { it.isNotBlank() }
+            title = document
+                .selectFirst("h1")
+                ?.text()
+                ?.cleanTitle()
+                ?.takeIf { it.isNotBlank() }
                 ?: info["Название"].orEmpty()
             thumbnail_url = document.selectFirst(".fposter img, .fleft-img img")?.absUrl("src")
             author = info["Режиссер"]
             artist = info["Актеры"]?.split(',')?.take(4)?.joinToString(", ") { it.trim() }
-            genre = (info["Жанр"] ?: info["Категории"])
-                ?.split('/', ',')
-                ?.map { it.trim() }
-                ?.filter { it.isNotBlank() }
-                ?.joinToString(", ")
+            genre =
+                (info["Жанр"] ?: info["Категории"])
+                    ?.split('/', ',')
+                    ?.map { it.trim() }
+                    ?.filter { it.isNotBlank() }
+                    ?.joinToString(", ")
             status = SAnime.COMPLETED
-            description = buildString {
-                document.selectFirst(".fdesc")?.text()?.trim()
-                    ?.takeIf { it.isNotBlank() }
-                    ?.let {
-                        appendLine(it)
-                        appendLine()
+            description =
+                buildString {
+                    document
+                        .selectFirst(".fdesc")
+                        ?.text()
+                        ?.trim()
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let {
+                            appendLine(it)
+                            appendLine()
+                        }
+                    DETAIL_KEYS.forEach { key ->
+                        info[key]?.takeIf { it.isNotBlank() }?.let { appendLine("$key: $it") }
                     }
-                DETAIL_KEYS.forEach { key ->
-                    info[key]?.takeIf { it.isNotBlank() }?.let { appendLine("$key: $it") }
-                }
-            }.trim()
+                }.trim()
         }
     }
 
@@ -125,11 +137,9 @@ class LordFilmMG :
 
     override fun episodeListRequest(anime: SAnime): Request = GET(baseUrl + anime.url, headers)
 
-    override suspend fun getEpisodeList(anime: SAnime): List<SEpisode> =
-        listOf(singleEpisode(anime.url))
+    override suspend fun getEpisodeList(anime: SAnime): List<SEpisode> = listOf(singleEpisode(anime.url))
 
-    override fun episodeListParse(response: Response): List<SEpisode> =
-        throw UnsupportedOperationException("Not used.")
+    override fun episodeListParse(response: Response): List<SEpisode> = throw UnsupportedOperationException("Not used.")
 
     // ============================ Video Links =============================
 
@@ -140,10 +150,11 @@ class LordFilmMG :
         val embedded = document.embeddedPlayers()
         if (embedded.isEmpty()) throw Exception("Плеер не найден на странице")
 
-        val videos = embedded.flatMap { player ->
-            val direct = directStream(player) ?: return@flatMap emptyList()
-            listOf(direct)
-        }
+        val videos =
+            embedded.flatMap { player ->
+                val direct = directStream(player) ?: return@flatMap emptyList()
+                listOf(direct)
+            }
 
         // Если ни один embed не выдал прямой поток — отдаём веб-плееры: Aniyomi
         // откроет их во встроенном WebView, где серия/перевод/качество выбираются на сайте.
@@ -155,29 +166,29 @@ class LordFilmMG :
      * (ortified) обфусцированы и отдают поток только после JS-логики — для
      * них вернётся null, и видео пойдёт через WebView.
      */
-    private suspend fun directStream(playerUrl: String): Video? {
-        return try {
-            val page = client.newCall(GET(playerUrl, playerHeaders(playerUrl))).awaitSuccess().bodyString()
+    private suspend fun directStream(playerUrl: String): Video? = try {
+        val page = client.newCall(GET(playerUrl, playerHeaders(playerUrl))).awaitSuccess().bodyString()
 
-            HLS_REGEX.find(page)?.let { match ->
-                playlistUtils.extractFromHls(
+        HLS_REGEX.find(page)?.let { match ->
+            playlistUtils
+                .extractFromHls(
                     playlistUrl = match.value,
                     referer = "$baseUrl/",
                     videoHeaders = headers,
                     videoNameGen = { quality -> "HLS - $quality" },
                 ).firstOrNull()
-            } ?: MPD_REGEX.find(page)?.let { match ->
-                playlistUtils.extractFromDash(
+        } ?: MPD_REGEX.find(page)?.let { match ->
+            playlistUtils
+                .extractFromDash(
                     dashUrl = match.value,
                     videoNameGen = { quality -> "DASH - $quality" },
                     mpdHeaders = headers,
                     videoHeaders = headers,
                     referer = "$baseUrl/",
                 ).firstOrNull()
-            }
-        } catch (e: Exception) {
-            null
         }
+    } catch (e: Exception) {
+        null
     }
 
     private fun webTitle(playerUrl: String): String = when {
@@ -195,19 +206,21 @@ class LordFilmMG :
             default = PREF_DOMAIN_DEFAULT,
             title = "Домен сайта",
             summary = "%s\nЗеркало на случай блокировки.",
-            dialogMessage = "По умолчанию: $PREF_DOMAIN_DEFAULT\n" +
-                "Рабочие зеркала: mg.lordfilm.md, m.lordfilm.md",
+            dialogMessage =
+                "По умолчанию: $PREF_DOMAIN_DEFAULT\n" +
+                    "Рабочие зеркала: mg.lordfilm.md, m.lordfilm.md",
             restartRequired = true,
         )
     }
 
     private fun domain(): String {
         val raw = preferences.getString(PREF_DOMAIN_KEY, PREF_DOMAIN_DEFAULT)!!.trim().trimEnd('/')
-        val url = when {
-            raw.isBlank() -> PREF_DOMAIN_DEFAULT
-            raw.startsWith("http") -> raw
-            else -> "https://$raw"
-        }
+        val url =
+            when {
+                raw.isBlank() -> PREF_DOMAIN_DEFAULT
+                raw.startsWith("http") -> raw
+                else -> "https://$raw"
+            }
         val host = runCatching { url.toHttpUrl().host }.getOrNull().orEmpty()
 
         if (DEAD_MIRRORS.any { it == host }) {
@@ -221,7 +234,10 @@ class LordFilmMG :
 
     // =============================== Utils ================================
 
-    private fun listRequest(path: String, page: Int): Request {
+    private fun listRequest(
+        path: String,
+        page: Int,
+    ): Request {
         val clean = path.removeSuffix("/")
         val url = if (page > 1) "$baseUrl$clean/page/$page/" else "$baseUrl$clean/"
 
@@ -229,25 +245,32 @@ class LordFilmMG :
     }
 
     /** Поиск — стандартный DLE POST, как у всего семейства. */
-    private fun searchRequest(query: String, page: Int): Request {
-        val body = FormBody.Builder()
-            .add("do", "search")
-            .add("subaction", "search")
-            .add("full_search", "0")
-            .add("search_start", page.toString())
-            .add("result_from", ((page - 1) * PER_PAGE + 1).toString())
-            .add("story", query.trim())
-            .build()
+    private fun searchRequest(
+        query: String,
+        page: Int,
+    ): Request {
+        val body =
+            FormBody
+                .Builder()
+                .add("do", "search")
+                .add("subaction", "search")
+                .add("full_search", "0")
+                .add("search_start", page.toString())
+                .add("result_from", ((page - 1) * PER_PAGE + 1).toString())
+                .add("story", query.trim())
+                .build()
 
         return POST("$baseUrl/index.php?do=search", headers, body)
     }
 
     private fun listParse(response: Response): AnimesPage {
         val document = response.useAsJsoup()
-        val animes = document.select(".th-item")
-            .mapNotNull { it.toSAnime() }
-            .distinctBy { it.url }
-            .distinctBy { it.title.lowercase() }
+        val animes =
+            document
+                .select(".th-item")
+                .mapNotNull { it.toSAnime() }
+                .distinctBy { it.url }
+                .distinctBy { it.title.lowercase() }
 
         return AnimesPage(animes, document.hasNextPage())
     }
@@ -286,16 +309,18 @@ class LordFilmMG :
         .filter { url -> PLAYER_MARKERS.any { url.contains(it) } }
         .distinct()
 
-    private fun playerHeaders(referer: String) = headers.newBuilder()
+    private fun playerHeaders(referer: String) = headers
+        .newBuilder()
         .set("Referer", referer)
         .build()
 
-    private fun Document.infoMap(): Map<String, String> = select(".flist li").mapNotNull { item ->
-        val text = item.text().trim()
-        val key = text.substringBefore(':').trim().takeIf { it.isNotBlank() && it != text } ?: return@mapNotNull null
+    private fun Document.infoMap(): Map<String, String> = select(".flist li")
+        .mapNotNull { item ->
+            val text = item.text().trim()
+            val key = text.substringBefore(':').trim().takeIf { it.isNotBlank() && it != text } ?: return@mapNotNull null
 
-        key to text.substringAfter(':').trim()
-    }.toMap()
+            key to text.substringAfter(':').trim()
+        }.toMap()
 
     private fun String.cleanTitle(): String = trim()
         .substringBefore(" смотреть онлайн")
@@ -320,25 +345,34 @@ class LordFilmMG :
         private const val PREF_DOMAIN_DEFAULT = "https://mg.lordfilm.md"
 
         /** Зеркала, которые больше не резолвятся (проверено 18.09.2026). */
-        private val DEAD_MIRRORS = listOf(
-            "lordfilm.md",
-            "ww1.lordfilm.md",
-            "tv.lordfilm.md",
-            "serial.lordfilm.md",
-        )
+        private val DEAD_MIRRORS =
+            listOf(
+                "lordfilm.md",
+                "ww1.lordfilm.md",
+                "tv.lordfilm.md",
+                "serial.lordfilm.md",
+            )
 
-        private val PLAYER_MARKERS = listOf(
-            "ortified", "lordfilm64", "fotpro135alto", "embed", "player", "stream", "video",
-        )
+        private val PLAYER_MARKERS =
+            listOf(
+                "ortified",
+                "lordfilm64",
+                "fotpro135alto",
+                "embed",
+                "player",
+                "stream",
+                "video",
+            )
 
-        private val DETAIL_KEYS = listOf(
-            "Название",
-            "Год выхода",
-            "Страна",
-            "Качество",
-            "Озвучка",
-            "Режиссер",
-        )
+        private val DETAIL_KEYS =
+            listOf(
+                "Название",
+                "Год выхода",
+                "Страна",
+                "Качество",
+                "Озвучка",
+                "Режиссер",
+            )
 
         private val EMBED_REGEX = Regex("""src\s*=\s*["'](https?://[^"']+)["']""")
         private val HLS_REGEX = Regex("""https?://[^"'\s<>]+\.m3u8[^"'\s<>]*""")
