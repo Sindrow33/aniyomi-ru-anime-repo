@@ -175,13 +175,13 @@ class LordFilmMG :
                     playlistUrl = match.value,
                     referer = "$baseUrl/",
                     videoHeaders = headers,
-                    videoNameGen = { quality -> "HLS - $quality" },
+                    videoNameGen = { quality: String -> "HLS - $quality" },
                 ).firstOrNull()
         } ?: MPD_REGEX.find(page)?.let { match ->
             playlistUtils
                 .extractFromDash(
                     dashUrl = match.value,
-                    videoNameGen = { quality -> "DASH - $quality" },
+                    videoNameGen = { quality: String -> "DASH - $quality" },
                     mpdHeaders = headers,
                     videoHeaders = headers,
                     referer = "$baseUrl/",
