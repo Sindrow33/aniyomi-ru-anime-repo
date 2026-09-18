@@ -137,7 +137,36 @@ class LordFilmMG :
 
     override fun episodeListRequest(anime: SAnime): Request = GET(baseUrl + anime.url, headers)
 
-    override suspend fun getEpisodeList(anime: SAnime): List<SEpisode> = listOf(singleEpisode(anime.url))
+    override suspend fun getEpisodeList(anime: SAnime): List<SEpisode> {
+        val document = client.newCall(GET(baseUrl + anime.url, headers)).awaitSuccess().useAsJsoup()
+
+        // Сериалы: lordfilm64-плеер отдаёт JSON со всеми сезонами/сериями. Фильмы
+        // такой сетки не имеют — для них остаётся одна запись «Смотреть».
+        val lfUrl = document.lordFilm64Url() ?: return listOf(singleEpisode(anime.url))
+        val lfPage =
+            runCatching {
+                client.newCall(GET(lfUrl, playerHeaders(baseUrl + anime.url))).awaitSuccess().bodyString()
+            }.getOrNull()
+        val seasons = lfPage?.let { parseSeasons(it) } ?: return listOf(singleEpisode(anime.url))
+
+        return buildList {
+            seasons.forEach { (season, episodes) ->
+                episodes.forEach { (series, translation) ->
+                    add(
+                        SEpisode.create().apply {
+                            url = "${anime.url}#S$season:E$series"
+                            name =
+                                buildString {
+                                    append("Сезон $season • Серия $series")
+                                    if (translation.isNotBlank()) append(" ($translation)")
+                                }
+                            episode_number = (season * 1000 + series).toFloat()
+                        },
+                    )
+                }
+            }
+        }.also { if (it.size > 1) it.sortedBy { e -> e.episode_number } }
+    }
 
     override fun episodeListParse(response: Response): List<SEpisode> = throw UnsupportedOperationException("Not used.")
 
@@ -145,20 +174,29 @@ class LordFilmMG :
 
     override suspend fun getVideoList(episode: SEpisode): List<Video> {
         val path = episode.url.substringBefore('#')
+        val fragment = episode.url.substringAfter('#', "")
 
         val document = client.newCall(GET(baseUrl + path, headers)).awaitSuccess().useAsJsoup()
         val embedded = document.embeddedPlayers()
         if (embedded.isEmpty()) throw Exception("Плеер не найден на странице")
 
-        val videos =
-            embedded.flatMap { player ->
-                val direct = directStream(player) ?: return@flatMap emptyList()
-                listOf(direct)
-            }
+        // Прямой поток ищем только для фильмов: серии без JS-плеера не сопоставить
+        // с конкретным m3u8, поэтому для них открываем веб-плеер сразу на серии.
+        val direct = if (fragment.isEmpty()) embedded.mapNotNull { directStream(it) } else emptyList()
+        if (direct.isNotEmpty()) return direct
 
-        // Если ни один embed не выдал прямой поток — отдаём веб-плееры: Aniyomi
-        // откроет их во встроенном WebView, где серия/перевод/качество выбираются на сайте.
-        return videos.ifEmpty { embedded.map { Video(it, webTitle(it), it) } }
+        val series = fragment.takeIf { it.isNotBlank() }?.substringAfter(":E", "")
+
+        return embedded.map { player ->
+            val url =
+                if (!fragment.isBlank() && player.contains("lordfilm64")) {
+                    player.toSeriesUrl(fragment)
+                } else {
+                    player
+                }
+            val label = if (fragment.isBlank()) webTitle(player) else "Серия $series • ${webTitle(player)}"
+            Video(url, label, url)
+        }
     }
 
     /**
@@ -190,6 +228,161 @@ class LordFilmMG :
         }
     } catch (e: Exception) {
         null
+    }
+
+    /**
+     * Вытаскивает URL lordfilm64-плеера из вкладки проигрывателя: сайт кладёт его
+     * в onclick как обычную ссылку (src=...&amp;token=...).
+     */
+    private fun Document.lordFilm64Url(): String? = selectFirst("span[onclick*='lordfilm64']")
+        ?.attr("onclick")
+        ?.let { onclick -> SRC_REGEX.find(onclick)?.groupValues?.get(1) }
+        ?.replace("&amp;", "&")
+        ?.toAbsoluteUrl()
+
+    /**
+     * Парсит JSON lordfilm64-плеера вида {"all":{"1":{"1":{"t66":{...,"translation":"..."}}}}}
+     * в карту сезон → серия → название перевода. Первый доступный перевод считается
+     * основным (сайт сам упорядочивает их по качеству).
+     */
+    private fun parseSeasons(page: String): Map<Int, Map<Int, String>>? {
+        val body = page.substringAfter("\"all\":", "").takeIf { it.startsWith("{") } ?: return null
+        val seasons = linkedMapOf<Int, LinkedHashMap<Int, String>>()
+        var i = 0
+
+        fun skipWhitespace() {
+            while (i < body.length && body[i].isWhitespace()) i++
+        }
+
+        fun readString(): String? {
+            if (body.getOrNull(i) != '"') return null
+            i++
+            val sb = StringBuilder()
+            while (i < body.length) {
+                val c = body[i]
+                if (c == '\\') {
+                    i++
+                    when (val n = body.getOrNull(i)) {
+                        'u' -> {
+                            runCatching { body.substring(i + 1, i + 5).toInt(16).toChar() }
+                                .getOrNull()
+                                ?.let { sb.append(it) }
+                            i += 4
+                        }
+                        else -> sb.append(n ?: ' ')
+                    }
+                } else if (c == '"') {
+                    i++
+                    return sb.toString()
+                } else {
+                    sb.append(c)
+                }
+                i++
+            }
+            return null
+        }
+
+        fun skipValue() {
+            skipWhitespace()
+            val c = body.getOrNull(i) ?: return
+            when {
+                c == '{' || c == '[' -> {
+                    var depth = 0
+                    var inString = false
+                    while (i < body.length) {
+                        val ch = body[i]
+                        if (inString) {
+                            if (ch == '\\') {
+                                i++
+                            } else if (ch == '"') {
+                                inString = false
+                            }
+                        } else if (ch == '"') {
+                            inString = true
+                        } else if (ch == '{' || ch == '[') {
+                            depth++
+                        } else if (ch == '}' || ch == ']') {
+                            depth--
+                            if (depth == 0) {
+                                i++
+                                return
+                            }
+                        }
+                        i++
+                    }
+                }
+                c == '"' -> readString()
+                else -> while (i < body.length && body[i] !in ",}") i++
+            }
+        }
+
+        skipWhitespace()
+        if (body.getOrNull(i) == '{') i++
+
+        while (i < body.length) {
+            skipWhitespace()
+            if (body.getOrNull(i) == '}') break
+            val seasonKey = readString() ?: break
+            skipWhitespace()
+            if (body.getOrNull(i) != ':') break
+            i++
+            skipWhitespace()
+            if (body.getOrNull(i) != '{') {
+                skipValue()
+                continue
+            }
+            i++
+            val season = seasonKey.toIntOrNull() ?: continue
+            val episodes = linkedMapOf<Int, String>()
+
+            while (i < body.length) {
+                skipWhitespace()
+                if (body.getOrNull(i) == '}') break
+                val epKey = readString() ?: break
+                skipWhitespace()
+                if (body.getOrNull(i) != ':') break
+                i++
+                skipWhitespace()
+                if (body.getOrNull(i) != '{') {
+                    skipValue()
+                    continue
+                }
+                i++
+                var translation: String? = null
+                while (i < body.length) {
+                    skipWhitespace()
+                    if (body.getOrNull(i) == '}') break
+                    val trKey = readString() ?: break
+                    skipWhitespace()
+                    if (body.getOrNull(i) != ':') break
+                    i++
+                    skipWhitespace()
+                    if (body.getOrNull(i) == '{') {
+                        if (translation == null && trKey.startsWith("t")) {
+                            translation = TRANSLATION_REGEX.find(body.substring(i))?.groupValues?.get(1)
+                        }
+                        skipValue()
+                    }
+                }
+                episodes[epKey.toIntOrNull() ?: continue] = translation.orEmpty()
+            }
+            seasons[season] = episodes
+        }
+
+        return seasons.takeIf { it.isNotEmpty() }
+    }
+
+    private fun String.toSeriesUrl(fragment: String): String {
+        val season = fragment.removePrefix("S").substringBefore(":E")
+        val series = fragment.substringAfter(":E", "")
+        return runCatching {
+            toHttpUrl()
+                .newBuilder()
+                .addQueryParameter("season", season)
+                .addQueryParameter("episode", series)
+                .build()
+                .toString()
+        }.getOrDefault(this)
     }
 
     private fun webTitle(playerUrl: String): String = when {
@@ -376,6 +569,8 @@ class LordFilmMG :
             )
 
         private val EMBED_REGEX = Regex("""src\s*=\s*["'](https?://[^"']+)["']""")
+        private val SRC_REGEX = Regex("""src=([^\s>]+)""")
+        private val TRANSLATION_REGEX = Regex(""""translation":"((?:[^"\\]|\\.)*)"""")
         private val HLS_REGEX = Regex("""https?://[^"'\s<>]+\.m3u8[^"'\s<>]*""")
         private val MPD_REGEX = Regex("""https?://[^"'\s<>]+\.mpd[^"'\s<>]*""")
         private val TITLE_PREFIX_REGEX = Regex("""^(?:Фильм|Сериал|Мультфильм|Мультсериал|Аниме)\s+""")
