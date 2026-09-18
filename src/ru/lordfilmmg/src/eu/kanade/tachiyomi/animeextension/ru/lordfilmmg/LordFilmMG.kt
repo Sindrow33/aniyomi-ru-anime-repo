@@ -207,8 +207,8 @@ class LordFilmMG :
             title = "Домен сайта",
             summary = "%s\nЗеркало на случай блокировки.",
             dialogMessage =
-                "По умолчанию: $PREF_DOMAIN_DEFAULT\n" +
-                    "Рабочие зеркала: mg.lordfilm.md, m.lordfilm.md",
+            "По умолчанию: $PREF_DOMAIN_DEFAULT\n" +
+                "Рабочие зеркала: mg.lordfilm.md, m.lordfilm.md",
             restartRequired = true,
         )
     }
