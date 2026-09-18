@@ -313,6 +313,24 @@
     ]
   },
   {
+    "name": "Aniyomi: LordFilmMG",
+    "pkg": "eu.kanade.tachiyomi.animeextension.ru.lordfilmmg",
+    "apk": "aniyomi-ru.lordfilmmg-v14.1.apk",
+    "lang": "ru",
+    "code": 1,
+    "version": "14.1",
+    "nsfw": 0,
+    "sources": [
+      {
+        "name": "LordFilmMG",
+        "lang": "ru",
+        "id": "8391340670959176002",
+        "baseUrl": "https://mg.lordfilm.md",
+        "versionId": 1
+      }
+    ]
+  },
+  {
     "name": "Aniyomi: XNXX",
     "pkg": "eu.kanade.tachiyomi.animeextension.all.xnxx",
     "apk": "aniyomi-all.xnxx-v14.1.apk",
