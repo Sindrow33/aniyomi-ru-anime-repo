@@ -180,7 +180,7 @@ class LordFilmMG :
         } ?: MPD_REGEX.find(page)?.let { match ->
             playlistUtils
                 .extractFromDash(
-                    dashUrl = match.value,
+                    mpdUrl = match.value,
                     videoNameGen = { quality: String -> "DASH - $quality" },
                     mpdHeaders = headers,
                     videoHeaders = headers,
