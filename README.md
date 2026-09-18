@@ -15,6 +15,7 @@ https://raw.githubusercontent.com/Sindrow33/aniyomi-ru-anime-repo/main/index.min
 | Расширение | Источники | 18+ |
 |---|---|---|
 | AniLibria | anilibria.top | нет |
+| LordFilmMG | mg.lordfilm.md (зеркала m.lordfilm.md — переключаются в настройках) | нет |
 | AnimeGO | animego.lat (зеркало переключается в настройках) | нет |
 | Anime365 | smotret-anime.online (для видео нужен аккаунт с подпиской) | нет |
 | Animakima | animakima.ru | нет |
