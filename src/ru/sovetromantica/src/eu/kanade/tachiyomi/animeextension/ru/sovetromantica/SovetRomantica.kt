@@ -4,6 +4,7 @@ import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
 import eu.kanade.tachiyomi.animesource.model.AnimesPage
 import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
+import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.awaitSuccess
 import keiyoushi.utils.AnimeHttpLegacySource
@@ -41,7 +42,7 @@ class SovetRomantica : AnimeHttpLegacySource() {
         return AnimesPage(emptyList(), false)
     }
 
-    // =========================== Anime Details ============================
+    // =========================== Anime Details ============================\n
     override fun animeDetailsRequest(anime: SAnime): Request = GET("$baseUrl/anime/${anime.url}")
 
     override fun animeDetailsParse(response: Response): SAnime {
@@ -51,7 +52,7 @@ class SovetRomantica : AnimeHttpLegacySource() {
         }
     }
 
-    // ============================== Episodes ==============================
+    // ============================== Episodes ==============================\n
     override fun episodeListRequest(anime: SAnime): Request = GET("$baseUrl/anime/${anime.url}/episodes")
 
     override fun episodeListParse(response: Response): List<SEpisode> {
@@ -59,7 +60,7 @@ class SovetRomantica : AnimeHttpLegacySource() {
         return emptyList()
     }
 
-    // ============================ Video Links =============================
+    // ============================ Video Links =============================\n
     override suspend fun getVideoList(episode: SEpisode): List<Video> {
         // Logic for parsing video links
         return emptyList()
