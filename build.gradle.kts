@@ -1,30 +1,22 @@
-plugins {
-    id("com.android.library")
-    id("kotlin-android")
+buildscript {
+    dependencies {
+        classpath(libs.kotlin.gradle)
+    }
 }
 
-android {
-    compileSdk = 31
-    sourceSets {
-        getByName("main").apply {
-            manifest.srcFile("src/ru/myanimelist/AndroidManifest.xml")
+plugins {
+    alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.android.library) apply false
+    alias(libs.plugins.kotlin.serialization) apply false
+
+    alias(kei.plugins.spotless)
+}
+
+val buildLogic: IncludedBuild = gradle.includedBuild("build-logic")
+tasks {
+    listOf("clean", "spotlessApply", "spotlessCheck").forEach { task ->
+        named(task) {
+            dependsOn(buildLogic.task(":$task"))
         }
     }
-    defaultConfig {
-        minSdk = 21
-        targetSdk = 31
-        versionCode = 1
-        versionName = "1.0.0"
-    }
-}
-
-repositories {
-    google()
-    mavenCentral()
-}
-
-dependencies {
-    implementation("org.jetbrains.kotlin:kotlin-stdlib:1.5.31")
-    implementation("com.squareup.retrofit2:retrofit:2.9.0")
-    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
 }
