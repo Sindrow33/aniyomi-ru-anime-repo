@@ -1,5 +1,3 @@
-/gradlew linguist-generated
-/gradlew.bat linguist-generated
-
-* text=auto eol=lf
-*.bat text eol=crlf
+# Custom Git attributes
+*.kt   text dif=
+*.xml  text dif=
