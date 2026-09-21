@@ -331,6 +331,24 @@
     ]
   },
   {
+    "name": "Aniyomi: SovetRomantica",
+    "pkg": "eu.kanade.tachiyomi.animeextension.ru.sovetromantica",
+    "apk": "aniyomi-ru.sovetromantica-v14.1.apk",
+    "lang": "ru",
+    "code": 1,
+    "version": "14.1",
+    "nsfw": 0,
+    "sources": [
+      {
+        "name": "SovetRomantica",
+        "lang": "ru",
+        "id": "3154649060158959770",
+        "baseUrl": "https://sovetromantica.com",
+        "versionId": 1
+      }
+    ]
+  },
+  {
     "name": "Aniyomi: XNXX",
     "pkg": "eu.kanade.tachiyomi.animeextension.all.xnxx",
     "apk": "aniyomi-all.xnxx-v14.1.apk",
