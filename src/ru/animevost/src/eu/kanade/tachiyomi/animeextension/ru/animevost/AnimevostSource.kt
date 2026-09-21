@@ -98,6 +98,20 @@ class AnimevostSource(override val name: String, override val baseUrl: String) :
 
     // Anime details
 
+    /**
+     * Поднимается от ссылки вверх до блока, который похож на карточку целиком
+     * (содержит обложку), но не выше — чтобы не захватить весь список.
+     */
+    private fun Element.cardRoot(): Element? {
+        var node: Element? = this
+        repeat(4) {
+            val parent = node?.parent() ?: return node
+            if (parent.selectFirst("img") != null) return parent
+            node = parent
+        }
+        return node
+    }
+
     override fun animeDetailsParse(document: Document): SAnime {
         val anime = SAnime.create()
 
@@ -343,16 +357,19 @@ class AnimevostSource(override val name: String, override val baseUrl: String) :
         // div.searchitem.  Fall back to div.post / article if the theme uses different
         // markup.  We deliberately avoid broad selectors like .content or div:has(...)
         // because they match parent wrappers and cause duplicates and wrong thumbnail lookups.
+        // DLE-карточки — div.shortstory; у поисковой выдачи бывают свои классы.
+        // Если тема не даёт ни одного известного контейнера, опираемся на сами
+        // ссылки на тайтлы: их href всегда вида /tip/<раздел>/<id>-<slug>.html.
+        // Прежний фолбэк требовал <img> в НЕПОСРЕДСТВЕННОМ родителе ссылки —
+        // на animevost картинка лежит в соседней ветке, поэтому из 114 найденных
+        // тайтлов в список попадало только 10.
         val containers = document.select("div.shortstory, div.searchnews, div.searchitem, div.post, article")
             .ifEmpty {
-                // Last-resort fallback: any div that directly wraps a /tip/ link.
-                // We require the container to have an <img> child so that bare
-                // navigation/filter links (genre, type) are not mistaken for anime cards.
                 Elements(
                     document.select("a[href*='/tip/']")
-                        .mapNotNull { it.parent() }
-                        .filter { parent -> parent.selectFirst("img") != null }
-                        .distinctBy { it.cssSelector() },
+                        .filter { TITLE_HREF_REGEX.containsMatchIn(it.attr("href")) }
+                        .mapNotNull { link -> link.cardRoot() }
+                        .distinctBy { it.selectFirst("a[href*='/tip/']")?.attr("href") ?: it.cssSelector() },
                 )
             }
 
@@ -537,5 +554,10 @@ class AnimevostSource(override val name: String, override val baseUrl: String) :
             default = "720",
             summary = "%s",
         )
+    }
+
+    companion object {
+        /** Ссылка на тайтл: /tip/<раздел>/<id>-<slug>.html (не раздел каталога). */
+        private val TITLE_HREF_REGEX = Regex("""/tip/[^/]+/\d+-[^/]+\.html""")
     }
 }

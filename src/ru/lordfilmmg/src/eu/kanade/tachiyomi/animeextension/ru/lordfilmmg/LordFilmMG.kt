@@ -187,14 +187,14 @@ class LordFilmMG :
         val embedded = document.embeddedPlayers()
         if (embedded.isEmpty()) throw Exception("Плеер не найден на странице")
 
-        // Прямой поток ищем только для фильмов: серии без JS-плеера не сопоставить
-        // с конкретным m3u8, поэтому для них открываем веб-плеер сразу на серии.
-        val direct = if (fragment.isEmpty()) embedded.mapNotNull { directStream(it) } else emptyList()
-        if (direct.isNotEmpty()) return direct
+        // Прямой поток пробуем и для серий тоже: если embed его отдаёт, играть
+        // им приятнее, чем веб-плеером. Веб-плеер всегда идёт следом запасным
+        // вариантом — раньше при неудаче прямого поиска список оставался пустым.
+        val direct = embedded.mapNotNull { directStream(it) }
 
         val series = fragment.takeIf { it.isNotBlank() }?.substringAfter(":E", "")
 
-        return embedded.map { player ->
+        val web = embedded.map { player ->
             val url =
                 if (!fragment.isBlank() && player.contains("lordfilm64")) {
                     player.toSeriesUrl(fragment)
@@ -202,8 +202,10 @@ class LordFilmMG :
                     player
                 }
             val label = if (fragment.isBlank()) webTitle(player) else "Серия $series • ${webTitle(player)}"
-            Video(url, label, url)
+            Video(url, label, url, headers = playerHeaders(baseUrl + path))
         }
+
+        return direct + web
     }
 
     /**
@@ -434,7 +436,11 @@ class LordFilmMG :
         val html = html()
         EMBED_REGEX.findAll(html).forEach { add(it.groupValues[1]) }
     }.map { it.toAbsoluteUrl() }
-        .filter { url -> PLAYER_MARKERS.any { url.contains(it) } }
+        // Маркеры player/video/embed ловят и подключаемые скрипты
+        // (vid_vpaut_script.js, actualize.js) — их нельзя отдавать как видео.
+        .filterNot { url -> url.substringBefore('?').endsWith(".js") }
+        .filterNot { url -> url.substringBefore('?').endsWith(".css") }
+        .filter { url -> PLAYER_HOSTS.any { url.contains(it) } }
         .distinct()
 
     private fun playerHeaders(referer: String) = headers
@@ -481,15 +487,13 @@ class LordFilmMG :
                 "serial.lordfilm.md",
             )
 
-        private val PLAYER_MARKERS =
+        /** Хосты реальных плееров этого семейства (без подключаемых скриптов). */
+        private val PLAYER_HOSTS =
             listOf(
                 "ortified",
                 "lordfilm64",
-                "fotpro135alto",
-                "embed",
-                "player",
-                "stream",
-                "video",
+                "fotpro",
+                "/embed/",
             )
 
         private val DETAIL_KEYS =
