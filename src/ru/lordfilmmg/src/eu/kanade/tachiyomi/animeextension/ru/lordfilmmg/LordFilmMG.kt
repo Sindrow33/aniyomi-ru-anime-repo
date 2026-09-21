@@ -1,12 +1,12 @@
 package eu.kanade.tachiyomi.animeextension.ru.lordfilmmg
 
 import androidx.preference.PreferenceScreen
-import aniyomi.lib.playlistutils.PlaylistUtils
 import eu.kanade.tachiyomi.animesource.ConfigurableAnimeSource
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
 import eu.kanade.tachiyomi.animesource.model.AnimesPage
 import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
+import eu.kanade.tachiyomi.animesource.model.Track
 import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
@@ -17,9 +17,7 @@ import keiyoushi.utils.bodyString
 import keiyoushi.utils.getPreferencesLazy
 import keiyoushi.utils.parseAs
 import keiyoushi.utils.useAsJsoup
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.Serializable
 import okhttp3.FormBody
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
@@ -49,8 +47,6 @@ class LordFilmMG :
     override val supportsLatest = true
 
     private val preferences by getPreferencesLazy()
-
-    private val playlistUtils by lazy { PlaylistUtils(client, headers) }
 
     override fun headersBuilder() = super
         .headersBuilder()
@@ -142,37 +138,30 @@ class LordFilmMG :
     override fun episodeListRequest(anime: SAnime): Request = GET(baseUrl + anime.url, headers)
 
     override suspend fun getEpisodeList(anime: SAnime): List<SEpisode> {
-        val document = client.newCall(GET(baseUrl + anime.url, headers)).awaitSuccess().useAsJsoup()
+        val page = client.newCall(GET(baseUrl + anime.url, headers)).awaitSuccess().useAsJsoup()
+        val embed = page.ortifiedUrl() ?: return listOf(singleEpisode(anime.url))
+        val html = runCatching {
+            client.newCall(GET(embed, playerHeaders(baseUrl + anime.url))).awaitSuccess().bodyString()
+        }.getOrNull() ?: return listOf(singleEpisode(anime.url))
 
-        // Сериалы: lordfilm64-плеер отдаёт JSON со всеми сезонами/сериями. Фильмы
-        // такой сетки не имеют — для них остаётся одна запись «Смотреть».
-        val lfUrl = document.lordFilm64Url() ?: return listOf(singleEpisode(anime.url))
-        val lfPage =
-            runCatching {
-                client.newCall(GET(lfUrl, playerHeaders(baseUrl + anime.url))).awaitSuccess().bodyString()
-            }.getOrNull()
-        val seasons = lfPage?.let { parseSeasons(it) } ?: return listOf(singleEpisode(anime.url))
-
-        // У фильма сетка вырождается в один сезон с одной серией — тогда
-        // показываем привычную единственную запись «Смотреть».
-        val total = seasons.values.sumOf { it.size }
-        if (total <= 1) return listOf(singleEpisode(anime.url))
-
+        val seasons = html.parsePlaylist() ?: return listOf(singleEpisode(anime.url))
         val multiSeason = seasons.size > 1
 
-        return seasons.flatMap { (season, episodes) ->
-            episodes.map { (series, translation) ->
-                SEpisode.create().apply {
-                    url = "${anime.url}#S$season:E$series"
-                    name = buildString {
-                        if (multiSeason) append("Сезон $season • ")
-                        append("Серия $series")
-                        if (translation.isNotBlank()) append(" ($translation)")
+        return seasons
+            .flatMap { season ->
+                season.episodes.map { episode ->
+                    val number = episode.episode.toIntOrNull() ?: 0
+                    SEpisode.create().apply {
+                        // Сезон и серию храним в url — плеер выбирает их query-параметрами.
+                        url = "${anime.url}#S${season.season}:E${episode.episode}"
+                        name = buildString {
+                            if (multiSeason) append("Сезон ${season.season} • ")
+                            append("Серия ${episode.episode}")
+                        }
+                        episode_number = (season.season * 1000 + number).toFloat()
                     }
-                    episode_number = (season * 1000 + series).toFloat()
                 }
-            }
-        }.sortedByDescending { it.episode_number }
+            }.sortedByDescending { it.episode_number }
     }
 
     override fun episodeListParse(response: Response): List<SEpisode> = throw UnsupportedOperationException("Not used.")
@@ -182,111 +171,127 @@ class LordFilmMG :
     override suspend fun getVideoList(episode: SEpisode): List<Video> {
         val path = episode.url.substringBefore('#')
         val fragment = episode.url.substringAfter('#', "")
+        val season = fragment.removePrefix("S").substringBefore(":E").toIntOrNull()
+        val series = fragment.substringAfter(":E", "").takeIf { it.isNotBlank() }
 
-        val document = client.newCall(GET(baseUrl + path, headers)).awaitSuccess().useAsJsoup()
-        val embedded = document.embeddedPlayers()
-        if (embedded.isEmpty()) throw Exception("Плеер не найден на странице")
+        val page = client.newCall(GET(baseUrl + path, headers)).awaitSuccess().useAsJsoup()
+        val referer = baseUrl + path
+        val embed = page.ortifiedUrl()
 
-        // Прямой поток пробуем и для серий тоже: если embed его отдаёт, играть
-        // им приятнее, чем веб-плеером. Веб-плеер всегда идёт следом запасным
-        // вариантом — раньше при неудаче прямого поиска список оставался пустым.
-        val direct = embedded.mapNotNull { directStream(it) }
+        if (embed != null) {
+            val target = if (season != null && series != null) {
+                "$embed?season=$season&episode=$series"
+            } else {
+                embed
+            }
+            val html = runCatching {
+                client.newCall(GET(target, playerHeaders(referer))).awaitSuccess().bodyString()
+            }.getOrNull()
 
-        val series = fragment.takeIf { it.isNotBlank() }?.substringAfter(":E", "")
-
-        val web = embedded.map { player ->
-            val url =
-                if (!fragment.isBlank() && player.contains("lordfilm64")) {
-                    player.toSeriesUrl(fragment)
+            // Сериал: берём ровно ту серию, которую запросили, а не первую в сетке —
+            // раньше плеер отдавал playlist целиком и открывалась не та серия.
+            val source = html?.let { body ->
+                if (season != null && series != null) {
+                    body.parsePlaylist()
+                        ?.firstOrNull { it.season == season }
+                        ?.episodes
+                        ?.firstOrNull { it.episode == series }
                 } else {
-                    player
+                    body.parseSource()
                 }
-            val label = if (fragment.isBlank()) webTitle(player) else "Серия $series • ${webTitle(player)}"
-            Video(url, label, url, headers = playerHeaders(baseUrl + path))
-        }
-
-        return direct + web
-    }
-
-    /**
-     * Пробует вытащить прямой HLS/DASH из embed-страницы. Некоторые плееры
-     * (ortified) обфусцированы и отдают поток только после JS-логики — для
-     * них вернётся null, и видео пойдёт через WebView.
-     */
-    private suspend fun directStream(playerUrl: String): Video? = try {
-        val page = client.newCall(GET(playerUrl, playerHeaders(playerUrl))).awaitSuccess().bodyString()
-
-        HLS_REGEX.find(page)?.let { match ->
-            playlistUtils
-                .extractFromHls(
-                    playlistUrl = match.value,
-                    masterHeaders = headers,
-                    referer = "$baseUrl/",
-                    videoHeaders = headers,
-                    videoNameGen = { quality: String -> "HLS - $quality" },
-                ).firstOrNull()
-        } ?: MPD_REGEX.find(page)?.let { match ->
-            playlistUtils
-                .extractFromDash(
-                    mpdUrl = match.value,
-                    videoNameGen = { quality: String -> "DASH - $quality" },
-                    mpdHeaders = headers,
-                    videoHeaders = headers,
-                    referer = "$baseUrl/",
-                ).firstOrNull()
-        }
-    } catch (e: Exception) {
-        null
-    }
-
-    /**
-     * Вытаскивает URL lordfilm64-плеера из вкладки проигрывателя: сайт кладёт его
-     * в onclick как обычную ссылку (src=...&amp;token=...).
-     */
-    private fun Document.lordFilm64Url(): String? = selectFirst("span[onclick*='lordfilm64']")
-        ?.attr("onclick")
-        ?.let { onclick -> SRC_REGEX.find(onclick)?.groupValues?.get(1) }
-        ?.replace("&amp;", "&")
-        ?.toAbsoluteUrl()
-
-    /**
-     * Парсит JSON lordfilm64-плеера вида
-     * {"all":{"<сезон>":{"<серия>":{"t66":{...,"translation":"..."}}}}}
-     * в карту сезон → серия → название перевода. Первый перевод в объекте
-     * считается основным — сайт сам упорядочивает их по качеству.
-     *
-     * Раньше здесь был самописный посимвольный разбор; он не съедал закрывающую
-     * скобку объекта серии и обрывал цикл после первой записи, из-за чего у
-     * сериалов показывалась ровно одна серия.
-     */
-    private fun parseSeasons(page: String): Map<Int, Map<Int, String>>? {
-        val payload = page.substringAfter("\"all\":", "").takeIf { it.startsWith("{") } ?: return null
-        val all = runCatching { payload.extractJsonObject().parseAs<JsonObject>() }.getOrNull() ?: return null
-
-        val seasons = sortedMapOf<Int, Map<Int, String>>()
-        all.forEach { (seasonKey, seasonValue) ->
-            val season = seasonKey.toIntOrNull() ?: return@forEach
-            val episodesJson = seasonValue as? JsonObject ?: return@forEach
-
-            val episodes = sortedMapOf<Int, String>()
-            episodesJson.forEach { (episodeKey, episodeValue) ->
-                val episode = episodeKey.toIntOrNull() ?: return@forEach
-                val translations = episodeValue as? JsonObject ?: return@forEach
-                val translation = translations.values
-                    .filterIsInstance<JsonObject>()
-                    .firstNotNullOfOrNull { (it["translation"] as? JsonPrimitive)?.contentOrNull }
-
-                episodes[episode] = translation.orEmpty()
             }
 
-            if (episodes.isNotEmpty()) seasons[season] = episodes
+            val videos = source?.let { streamVideos(it, target) }.orEmpty()
+            if (videos.isNotEmpty()) return videos
         }
 
-        return seasons.takeIf { it.isNotEmpty() }
+        // Запасной путь — веб-плееры во встроенном WebView.
+        val players = page.embeddedPlayers()
+        if (players.isEmpty()) throw Exception("Плеер не найден на странице")
+
+        return players.map { player ->
+            val label = if (series == null) webTitle(player) else "Серия $series • ${webTitle(player)}"
+            Video(player, label, player, headers = playerHeaders(referer))
+        }
     }
 
-    /** Отрезает от строки ровно один сбалансированный JSON-объект. */
-    private fun String.extractJsonObject(): String {
+    /**
+     * Собирает видео из HLS-мастера плеера и подставляет НАСТОЯЩИЕ названия озвучек.
+     *
+     * В мастер-плейлисте дорожки называются служебно (rus0, rus1, ukr9…), а
+     * человеческие названия лежат отдельно в поле audio.names — при простом
+     * разборе дорожка и её подпись расходились, из-за чего звук «жил своей
+     * жизнью»: включалась не та озвучка, что выбрал пользователь.
+     */
+    private suspend fun streamVideos(source: PlayerSource, referer: String): List<Video> {
+        val hls = source.hls?.takeIf { it.isNotBlank() } ?: return emptyList()
+        val master = runCatching {
+            client.newCall(GET(hls, playerHeaders(referer))).awaitSuccess().bodyString()
+        }.getOrNull() ?: return emptyList()
+
+        val names = source.audio?.names.orEmpty()
+        val subtitles = source.cc.orEmpty().map { Track(it.url, it.name) }
+
+        // Дорожки основной группы; failover-группа — те же озвучки с резервного CDN.
+        val audio = AUDIO_MEDIA_REGEX.findAll(master)
+            .mapNotNull { match ->
+                val attrs = match.groupValues[1]
+                if (GROUP_REGEX.find(attrs)?.groupValues?.get(1)?.startsWith("failover") == true) return@mapNotNull null
+                val url = MEDIA_URI_REGEX.find(attrs)?.groupValues?.get(1) ?: return@mapNotNull null
+                val raw = MEDIA_NAME_REGEX.find(attrs)?.groupValues?.get(1).orEmpty()
+                val index = raw.takeLastWhile { it.isDigit() }.toIntOrNull()
+                Track(url, names.getOrNull(index ?: -1) ?: raw)
+            }.toList()
+
+        val variants = master.split("#EXT-X-STREAM-INF:").drop(1).mapNotNull { block ->
+            val attrs = block.substringBefore('\n')
+            // Вариант с резервной аудиогруппой — дубликат, его в список не берём.
+            if (STREAM_AUDIO_REGEX.find(attrs)?.groupValues?.get(1)?.startsWith("failover") == true) return@mapNotNull null
+            val url = block.substringAfter('\n').lineSequence().firstOrNull { it.isNotBlank() }?.trim()
+                ?: return@mapNotNull null
+            val quality = RESOLUTION_REGEX.find(attrs)?.groupValues?.get(1)?.substringAfter('x')?.plus("p")
+                ?: "Видео"
+            val bandwidth = BANDWIDTH_REGEX.find(attrs)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+
+            bandwidth to Video(
+                url,
+                quality,
+                url,
+                headers = playerHeaders(referer),
+                subtitleTracks = subtitles,
+                audioTracks = audio,
+            )
+        }
+
+        return variants.sortedByDescending { (bandwidth, _) -> bandwidth }.map { (_, video) -> video }
+    }
+
+    /** Плеер-iframe ortified: единственный, отдающий сетку серий и прямой поток. */
+    private fun Document.ortifiedUrl(): String? = selectFirst("iframe[src*='ortified']")
+        ?.attr("src")
+        ?.takeIf { it.isNotBlank() }
+        ?.toAbsoluteUrl()
+
+    /** Сетка сезонов из `playlist: { seasons:[…] }` на странице плеера. */
+    private fun String.parsePlaylist(): List<PlayerSeason>? {
+        val payload = substringAfter("seasons:", "").takeIf { it.trimStart().startsWith("[") } ?: return null
+
+        return runCatching { payload.extractJson('[', ']').parseAs<List<PlayerSeason>>() }
+            .getOrNull()
+            ?.filter { it.episodes.isNotEmpty() }
+            ?.sortedBy { it.season }
+            ?.takeIf { it.isNotEmpty() }
+    }
+
+    /** Одиночный поток фильма из `source: { … }`. */
+    private fun String.parseSource(): PlayerSource? {
+        val payload = substringAfter("source:", "").takeIf { it.trimStart().startsWith("{") } ?: return null
+
+        return runCatching { payload.extractJson('{', '}').parseAs<PlayerSource>() }.getOrNull()
+    }
+
+    /** Отрезает от строки ровно один сбалансированный JSON-объект или массив. */
+    private fun String.extractJson(open: Char, close: Char): String {
         var depth = 0
         var inString = false
         var escaped = false
@@ -297,8 +302,8 @@ class LordFilmMG :
                 c == '\\' && inString -> escaped = true
                 c == '"' -> inString = !inString
                 inString -> Unit
-                c == '{' -> depth++
-                c == '}' -> {
+                c == open -> depth++
+                c == close -> {
                     depth--
                     if (depth == 0) return substring(0, index + 1)
                 }
@@ -306,19 +311,6 @@ class LordFilmMG :
         }
 
         return this
-    }
-
-    private fun String.toSeriesUrl(fragment: String): String {
-        val season = fragment.removePrefix("S").substringBefore(":E")
-        val series = fragment.substringAfter(":E", "")
-        return runCatching {
-            toHttpUrl()
-                .newBuilder()
-                .addQueryParameter("season", season)
-                .addQueryParameter("episode", series)
-                .build()
-                .toString()
-        }.getOrDefault(this)
     }
 
     private fun webTitle(playerUrl: String): String = when {
@@ -507,12 +499,48 @@ class LordFilmMG :
             )
 
         private val EMBED_REGEX = Regex("""src\s*=\s*["'](https?://[^"']+)["']""")
-        private val SRC_REGEX = Regex("""src=([^\s>]+)""")
-        private val HLS_REGEX = Regex("""https?://[^"'\s<>]+\.m3u8[^"'\s<>]*""")
-        private val MPD_REGEX = Regex("""https?://[^"'\s<>]+\.mpd[^"'\s<>]*""")
+
+        // Мастер-плейлист: аудиодорожки и варианты качества.
+        private val AUDIO_MEDIA_REGEX = Regex("""#EXT-X-MEDIA:(TYPE=AUDIO[^\n]*)""")
+        private val GROUP_REGEX = Regex("""GROUP-ID="([^"]+)"""")
+        private val MEDIA_URI_REGEX = Regex("""URI="([^"]+)"""")
+        private val MEDIA_NAME_REGEX = Regex("""NAME="([^"]+)"""")
+        private val STREAM_AUDIO_REGEX = Regex("""AUDIO="([^"]+)"""")
+        private val RESOLUTION_REGEX = Regex("""RESOLUTION=(\d+x\d+)""")
+        private val BANDWIDTH_REGEX = Regex("""BANDWIDTH=(\d+)""")
         private val TITLE_PREFIX_REGEX = Regex("""^(?:Фильм|Сериал|Мультфильм|Мультсериал|Аниме)\s+""")
 
         // Некоторые списки несут опечатку или диапазон года, например "(20265)" / "(2024-2025)".
         private val TITLE_TAIL_REGEX = Regex("""\s*\(\d{4}\S*\)\s*$""")
     }
 }
+
+/** Сезон из сетки плеера ortified. */
+@Serializable
+data class PlayerSeason(
+    val season: Int = 0,
+    val episodes: List<PlayerSource> = emptyList(),
+)
+
+/** Один источник: серия сериала или единственный поток фильма. */
+@Serializable
+data class PlayerSource(
+    val episode: String = "",
+    val hls: String? = null,
+    val dash: String? = null,
+    val title: String? = null,
+    val audio: PlayerAudio? = null,
+    val cc: List<PlayerSubtitle>? = null,
+)
+
+/** Человеческие названия озвучек — в мастер-плейлисте дорожки служебные. */
+@Serializable
+data class PlayerAudio(
+    val names: List<String> = emptyList(),
+)
+
+@Serializable
+data class PlayerSubtitle(
+    val url: String = "",
+    val name: String = "",
+)
