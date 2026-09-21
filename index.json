@@ -128,10 +128,10 @@
   {
     "name": "Aniyomi: Animevost",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.animevost",
-    "apk": "aniyomi-ru.animevost-v14.12.apk",
+    "apk": "aniyomi-ru.animevost-v14.13.apk",
     "lang": "ru",
-    "code": 12,
-    "version": "14.12",
+    "code": 13,
+    "version": "14.13",
     "nsfw": 0,
     "sources": [
       {
@@ -315,10 +315,10 @@
   {
     "name": "Aniyomi: LordFilmMG",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.lordfilmmg",
-    "apk": "aniyomi-ru.lordfilmmg-v14.4.apk",
+    "apk": "aniyomi-ru.lordfilmmg-v14.5.apk",
     "lang": "ru",
-    "code": 4,
-    "version": "14.4",
+    "code": 5,
+    "version": "14.5",
     "nsfw": 0,
     "sources": [
       {
@@ -326,6 +326,24 @@
         "lang": "ru",
         "id": "8391340670959176002",
         "baseUrl": "https://mg.lordfilm.md",
+        "versionId": 1
+      }
+    ]
+  },
+  {
+    "name": "Aniyomi: Tvigle",
+    "pkg": "eu.kanade.tachiyomi.animeextension.ru.tvigle",
+    "apk": "aniyomi-ru.tvigle-v14.1.apk",
+    "lang": "ru",
+    "code": 1,
+    "version": "14.1",
+    "nsfw": 0,
+    "sources": [
+      {
+        "name": "Tvigle",
+        "lang": "ru",
+        "id": "4107094570617320249",
+        "baseUrl": "https://www.tvigle.ru",
         "versionId": 1
       }
     ]
