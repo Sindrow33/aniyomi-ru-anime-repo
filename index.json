@@ -128,10 +128,10 @@
   {
     "name": "Aniyomi: Animevost",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.animevost",
-    "apk": "aniyomi-ru.animevost-v14.11.apk",
+    "apk": "aniyomi-ru.animevost-v14.12.apk",
     "lang": "ru",
-    "code": 11,
-    "version": "14.11",
+    "code": 12,
+    "version": "14.12",
     "nsfw": 0,
     "sources": [
       {
@@ -315,10 +315,10 @@
   {
     "name": "Aniyomi: LordFilmMG",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.lordfilmmg",
-    "apk": "aniyomi-ru.lordfilmmg-v14.3.apk",
+    "apk": "aniyomi-ru.lordfilmmg-v14.4.apk",
     "lang": "ru",
-    "code": 3,
-    "version": "14.3",
+    "code": 4,
+    "version": "14.4",
     "nsfw": 0,
     "sources": [
       {
