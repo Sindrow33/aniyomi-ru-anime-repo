@@ -15,7 +15,11 @@ import keiyoushi.utils.AnimeHttpLegacySource
 import keiyoushi.utils.addEditTextPreference
 import keiyoushi.utils.bodyString
 import keiyoushi.utils.getPreferencesLazy
+import keiyoushi.utils.parseAs
 import keiyoushi.utils.useAsJsoup
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import okhttp3.FormBody
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
@@ -149,23 +153,26 @@ class LordFilmMG :
             }.getOrNull()
         val seasons = lfPage?.let { parseSeasons(it) } ?: return listOf(singleEpisode(anime.url))
 
-        return buildList {
-            seasons.forEach { (season, episodes) ->
-                episodes.forEach { (series, translation) ->
-                    add(
-                        SEpisode.create().apply {
-                            url = "${anime.url}#S$season:E$series"
-                            name =
-                                buildString {
-                                    append("Сезон $season • Серия $series")
-                                    if (translation.isNotBlank()) append(" ($translation)")
-                                }
-                            episode_number = (season * 1000 + series).toFloat()
-                        },
-                    )
+        // У фильма сетка вырождается в один сезон с одной серией — тогда
+        // показываем привычную единственную запись «Смотреть».
+        val total = seasons.values.sumOf { it.size }
+        if (total <= 1) return listOf(singleEpisode(anime.url))
+
+        val multiSeason = seasons.size > 1
+
+        return seasons.flatMap { (season, episodes) ->
+            episodes.map { (series, translation) ->
+                SEpisode.create().apply {
+                    url = "${anime.url}#S$season:E$series"
+                    name = buildString {
+                        if (multiSeason) append("Сезон $season • ")
+                        append("Серия $series")
+                        if (translation.isNotBlank()) append(" ($translation)")
+                    }
+                    episode_number = (season * 1000 + series).toFloat()
                 }
             }
-        }.also { if (it.size > 1) it.sortedBy { e -> e.episode_number } }
+        }.sortedByDescending { it.episode_number }
     }
 
     override fun episodeListParse(response: Response): List<SEpisode> = throw UnsupportedOperationException("Not used.")
@@ -241,135 +248,62 @@ class LordFilmMG :
         ?.toAbsoluteUrl()
 
     /**
-     * Парсит JSON lordfilm64-плеера вида {"all":{"1":{"1":{"t66":{...,"translation":"..."}}}}}
-     * в карту сезон → серия → название перевода. Первый доступный перевод считается
-     * основным (сайт сам упорядочивает их по качеству).
+     * Парсит JSON lordfilm64-плеера вида
+     * {"all":{"<сезон>":{"<серия>":{"t66":{...,"translation":"..."}}}}}
+     * в карту сезон → серия → название перевода. Первый перевод в объекте
+     * считается основным — сайт сам упорядочивает их по качеству.
+     *
+     * Раньше здесь был самописный посимвольный разбор; он не съедал закрывающую
+     * скобку объекта серии и обрывал цикл после первой записи, из-за чего у
+     * сериалов показывалась ровно одна серия.
      */
     private fun parseSeasons(page: String): Map<Int, Map<Int, String>>? {
-        val body = page.substringAfter("\"all\":", "").takeIf { it.startsWith("{") } ?: return null
-        val seasons = linkedMapOf<Int, LinkedHashMap<Int, String>>()
-        var i = 0
+        val payload = page.substringAfter("\"all\":", "").takeIf { it.startsWith("{") } ?: return null
+        val all = runCatching { payload.extractJsonObject().parseAs<JsonObject>() }.getOrNull() ?: return null
 
-        fun skipWhitespace() {
-            while (i < body.length && body[i].isWhitespace()) i++
-        }
+        val seasons = sortedMapOf<Int, Map<Int, String>>()
+        all.forEach { (seasonKey, seasonValue) ->
+            val season = seasonKey.toIntOrNull() ?: return@forEach
+            val episodesJson = seasonValue as? JsonObject ?: return@forEach
 
-        fun readString(): String? {
-            if (body.getOrNull(i) != '"') return null
-            i++
-            val sb = StringBuilder()
-            while (i < body.length) {
-                val c = body[i]
-                if (c == '\\') {
-                    i++
-                    when (val n = body.getOrNull(i)) {
-                        'u' -> {
-                            runCatching { body.substring(i + 1, i + 5).toInt(16).toChar() }
-                                .getOrNull()
-                                ?.let { sb.append(it) }
-                            i += 4
-                        }
-                        else -> sb.append(n ?: ' ')
-                    }
-                } else if (c == '"') {
-                    i++
-                    return sb.toString()
-                } else {
-                    sb.append(c)
-                }
-                i++
+            val episodes = sortedMapOf<Int, String>()
+            episodesJson.forEach { (episodeKey, episodeValue) ->
+                val episode = episodeKey.toIntOrNull() ?: return@forEach
+                val translations = episodeValue as? JsonObject ?: return@forEach
+                val translation = translations.values
+                    .filterIsInstance<JsonObject>()
+                    .firstNotNullOfOrNull { (it["translation"] as? JsonPrimitive)?.contentOrNull }
+
+                episodes[episode] = translation.orEmpty()
             }
-            return null
-        }
 
-        fun skipValue() {
-            skipWhitespace()
-            val c = body.getOrNull(i) ?: return
-            when {
-                c == '{' || c == '[' -> {
-                    var depth = 0
-                    var inString = false
-                    while (i < body.length) {
-                        val ch = body[i]
-                        if (inString) {
-                            if (ch == '\\') {
-                                i++
-                            } else if (ch == '"') {
-                                inString = false
-                            }
-                        } else if (ch == '"') {
-                            inString = true
-                        } else if (ch == '{' || ch == '[') {
-                            depth++
-                        } else if (ch == '}' || ch == ']') {
-                            depth--
-                            if (depth == 0) {
-                                i++
-                                return
-                            }
-                        }
-                        i++
-                    }
-                }
-                c == '"' -> readString()
-                else -> while (i < body.length && body[i] !in ",}") i++
-            }
-        }
-
-        skipWhitespace()
-        if (body.getOrNull(i) == '{') i++
-
-        while (i < body.length) {
-            skipWhitespace()
-            if (body.getOrNull(i) == '}') break
-            val seasonKey = readString() ?: break
-            skipWhitespace()
-            if (body.getOrNull(i) != ':') break
-            i++
-            skipWhitespace()
-            if (body.getOrNull(i) != '{') {
-                skipValue()
-                continue
-            }
-            i++
-            val season = seasonKey.toIntOrNull() ?: continue
-            val episodes = linkedMapOf<Int, String>()
-
-            while (i < body.length) {
-                skipWhitespace()
-                if (body.getOrNull(i) == '}') break
-                val epKey = readString() ?: break
-                skipWhitespace()
-                if (body.getOrNull(i) != ':') break
-                i++
-                skipWhitespace()
-                if (body.getOrNull(i) != '{') {
-                    skipValue()
-                    continue
-                }
-                i++
-                var translation: String? = null
-                while (i < body.length) {
-                    skipWhitespace()
-                    if (body.getOrNull(i) == '}') break
-                    val trKey = readString() ?: break
-                    skipWhitespace()
-                    if (body.getOrNull(i) != ':') break
-                    i++
-                    skipWhitespace()
-                    if (body.getOrNull(i) == '{') {
-                        if (translation == null && trKey.startsWith("t")) {
-                            translation = TRANSLATION_REGEX.find(body.substring(i))?.groupValues?.get(1)
-                        }
-                        skipValue()
-                    }
-                }
-                episodes[epKey.toIntOrNull() ?: continue] = translation.orEmpty()
-            }
-            seasons[season] = episodes
+            if (episodes.isNotEmpty()) seasons[season] = episodes
         }
 
         return seasons.takeIf { it.isNotEmpty() }
+    }
+
+    /** Отрезает от строки ровно один сбалансированный JSON-объект. */
+    private fun String.extractJsonObject(): String {
+        var depth = 0
+        var inString = false
+        var escaped = false
+
+        forEachIndexed { index, c ->
+            when {
+                escaped -> escaped = false
+                c == '\\' && inString -> escaped = true
+                c == '"' -> inString = !inString
+                inString -> Unit
+                c == '{' -> depth++
+                c == '}' -> {
+                    depth--
+                    if (depth == 0) return substring(0, index + 1)
+                }
+            }
+        }
+
+        return this
     }
 
     private fun String.toSeriesUrl(fragment: String): String {
@@ -570,7 +504,6 @@ class LordFilmMG :
 
         private val EMBED_REGEX = Regex("""src\s*=\s*["'](https?://[^"']+)["']""")
         private val SRC_REGEX = Regex("""src=([^\s>]+)""")
-        private val TRANSLATION_REGEX = Regex(""""translation":"((?:[^"\\]|\\.)*)"""")
         private val HLS_REGEX = Regex("""https?://[^"'\s<>]+\.m3u8[^"'\s<>]*""")
         private val MPD_REGEX = Regex("""https?://[^"'\s<>]+\.mpd[^"'\s<>]*""")
         private val TITLE_PREFIX_REGEX = Regex("""^(?:Фильм|Сериал|Мультфильм|Мультсериал|Аниме)\s+""")
