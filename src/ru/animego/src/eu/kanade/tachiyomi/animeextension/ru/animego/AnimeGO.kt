@@ -395,8 +395,13 @@ class AnimeGO :
         private const val ITEMS_PER_PAGE = 24
 
         private const val PREF_DOMAIN_KEY = "pref_domain"
-        private const val PREF_DOMAIN_DEFAULT = "animego.lat"
-        private val PREF_DOMAIN_ENTRIES = listOf("animego.lat", "animego.org", "animego.me", "animego.one")
+        // 2026-09: animego.lat начал отдавать HTTP 500 и SSL-сертификат
+        // на CN=2026-animego.org (subjectAltNames: [2026-animego.org]),
+        // т.е. домен фактически мёртв — расширение отказывалось грузить каталог.
+        // Переключаем дефолт на живое зеркало 2026-animego.org и поднимаем его
+        // в списке первым, чтобы новые инсталлы сразу открывали рабочий сайт.
+        private const val PREF_DOMAIN_DEFAULT = "2026-animego.org"
+        private val PREF_DOMAIN_ENTRIES = listOf("2026-animego.org", "animego.org", "animego.lat", "animego.me", "animego.one")
 
         private const val PREF_QUALITY_KEY = "pref_quality"
         private const val PREF_QUALITY_DEFAULT = "720p"
