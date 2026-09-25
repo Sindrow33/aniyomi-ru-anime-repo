@@ -232,12 +232,17 @@ class LordFilmMG :
         val names = source.audio?.names.orEmpty()
         val subtitles = source.cc.orEmpty().map { Track(it.url, it.name) }
 
-        // Дорожки основной группы; failover-группа — те же озвучки с резервного CDN.
+        // Дорожки основной группы; failover-группа — те же озвучки с резервного CDN,
+        // ad-группа — преролл/постролл рекламы со звуком рекламодателя. Рекламную
+        // дорожку никогда не отдаём как озвучку, иначе вместо серии играл рекламный
+        // ролик (было зафиксировано в v14.5 — «звук брался с рекламы»).
         val audio = AUDIO_MEDIA_REGEX.findAll(master)
             .mapNotNull { match ->
                 val attrs = match.groupValues[1]
-                if (GROUP_REGEX.find(attrs)?.groupValues?.get(1)?.startsWith("failover") == true) return@mapNotNull null
+                val group = GROUP_REGEX.find(attrs)?.groupValues?.get(1).orEmpty()
+                if (group.startsWith("failover") || AD_GROUP_REGEX.containsMatchIn(group)) return@mapNotNull null
                 val url = MEDIA_URI_REGEX.find(attrs)?.groupValues?.get(1) ?: return@mapNotNull null
+                if (AD_URI_REGEX.containsMatchIn(url)) return@mapNotNull null
                 val raw = MEDIA_NAME_REGEX.find(attrs)?.groupValues?.get(1).orEmpty()
                 val index = raw.takeLastWhile { it.isDigit() }.toIntOrNull()
                 Track(url, names.getOrNull(index ?: -1) ?: raw)
@@ -245,10 +250,14 @@ class LordFilmMG :
 
         val variants = master.split("#EXT-X-STREAM-INF:").drop(1).mapNotNull { block ->
             val attrs = block.substringBefore('\n')
-            // Вариант с резервной аудиогруппой — дубликат, его в список не берём.
-            if (STREAM_AUDIO_REGEX.find(attrs)?.groupValues?.get(1)?.startsWith("failover") == true) return@mapNotNull null
+            val audioGroup = STREAM_AUDIO_REGEX.find(attrs)?.groupValues?.get(1).orEmpty()
+            // Рекламный вариант: либо ссылается на аудио-группу рекламы, либо сам
+            // отдаёт рекламный поток (часто ставится первым и с самой высокой
+            // bandwidth — без фильтра именно он и открывался).
+            if (audioGroup.startsWith("failover") || AD_GROUP_REGEX.containsMatchIn(audioGroup)) return@mapNotNull null
             val url = block.substringAfter('\n').lineSequence().firstOrNull { it.isNotBlank() }?.trim()
                 ?: return@mapNotNull null
+            if (AD_URI_REGEX.containsMatchIn(url) || AD_URI_REGEX.containsMatchIn(attrs)) return@mapNotNull null
             val quality = RESOLUTION_REGEX.find(attrs)?.groupValues?.get(1)?.substringAfter('x')?.plus("p")
                 ?: "Видео"
             val bandwidth = BANDWIDTH_REGEX.find(attrs)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
@@ -262,6 +271,10 @@ class LordFilmMG :
                 audioTracks = audio,
             )
         }
+
+        // Ничего «живого» не осталось — значит, обманули ad-фильтры или мастер собран
+        // только из рекламы. Возвращаем пусто, чтобы код пошёл в WebView-fallback.
+        if (variants.isEmpty()) return emptyList()
 
         return variants.sortedByDescending { (bandwidth, _) -> bandwidth }.map { (_, video) -> video }
     }
@@ -286,7 +299,6 @@ class LordFilmMG :
     /** Одиночный поток фильма из `source: { … }`. */
     private fun String.parseSource(): PlayerSource? {
         val payload = substringAfter("source:", "").takeIf { it.trimStart().startsWith("{") } ?: return null
-
         return runCatching { payload.extractJson('{', '}').parseAs<PlayerSource>() }.getOrNull()
     }
 
@@ -512,6 +524,13 @@ class LordFilmMG :
 
         // Некоторые списки несут опечатку или диапазон года, например "(20265)" / "(2024-2025)".
         private val TITLE_TAIL_REGEX = Regex("""\s*\(\d{4}\S*\)\s*$""")
+
+        // Пре-ролл/постролл/VAST/IMA признаки — то, что нужно выкинуть, чтобы вместо
+        // серии не показывалась реклама. Покрывает и группы (ad / ads-…)
+        // и сами URL (vast. / preroll. / imads- / sponsor-… — имена встречались
+        // в дампах мастер-плейлиста ortified).
+        private val AD_GROUP_REGEX = Regex("""(?i)\b(?:ad|ads|preroll|postroll|ima|sponsor|banner)s?\b""")
+        private val AD_URI_REGEX = Regex("""(?i)(?:^|[/.])(?:ad|ads|preroll|postroll|ima|sponsor|banner|vast)(?:[/.]|$)""")
     }
 }
 
