@@ -218,7 +218,7 @@ class LordFilmMG :
     /**
      * Собирает видео из HLS-мастера плеера и подставляет НАСТОЯЩИЕ названия озвучек.
      *
-     * В мастер-плейлисте дорожки называются служебно (rus0, rus1, ukr9…), а
+     * В master-плейлисте дорожки называются служебно (rus0, rus1, ukr9…), а
      * человеческие названия лежат отдельно в поле audio.names — при простом
      * разборе дорожка и её подпись расходились, из-за чего звук «жил своей
      * жизнью»: включалась не та озвучка, что выбрал пользователь.
@@ -232,17 +232,21 @@ class LordFilmMG :
         val names = source.audio?.names.orEmpty()
         val subtitles = source.cc.orEmpty().map { Track(it.url, it.name) }
 
-        // Дорожки основной группы; failover-группа — те же озвучки с резервного CDN,
-        // ad-группа — преролл/постролл рекламы со звуком рекламодателя. Рекламную
-        // дорожку никогда не отдаём как озвучку, иначе вместо серии играл рекламный
-        // ролик (было зафиксировано в v14.5 — «звук брался с рекламы»).
+        // Дорожки основной группы; failover-группа — те же озвучки с резервного CDN.
+        // В v14.6 я добавил AD_GROUP_REGEX/AD_URI_REGEX (по словам ad/ads/preroll…),
+        // и ортифаед раздаёт CDN-сегменты вида /cdn/ads-cdn.ru/seg_N.ts — регекс
+        // ловил «ads» внутри этого хоста и промахивался все серии на «пусто»,
+        // дальше код шёл в WebView-fallback и ExoPlayer показывал
+        // «unrecognized file format». Здесь фильтр снова узкий — только когда
+        // URI сам по себе — рекламный плейлист целиком (имя файла полностью или
+        // первый сегмент пути состоит из ad/ads/preroll/postroll/vast/ima).
         val audio = AUDIO_MEDIA_REGEX.findAll(master)
             .mapNotNull { match ->
                 val attrs = match.groupValues[1]
-                val group = GROUP_REGEX.find(attrs)?.groupValues?.get(1).orEmpty()
-                if (group.startsWith("failover") || AD_GROUP_REGEX.containsMatchIn(group)) return@mapNotNull null
+                if (GROUP_REGEX.find(attrs)?.groupValues?.get(1)?.startsWith("failover") == true) return@mapNotNull null
+                if (isAdSlot(GROUP_REGEX.find(attrs)?.groupValues?.get(1).orEmpty())) return@mapNotNull null
                 val url = MEDIA_URI_REGEX.find(attrs)?.groupValues?.get(1) ?: return@mapNotNull null
-                if (AD_URI_REGEX.containsMatchIn(url)) return@mapNotNull null
+                if (isAdSlot(url)) return@mapNotNull null
                 val raw = MEDIA_NAME_REGEX.find(attrs)?.groupValues?.get(1).orEmpty()
                 val index = raw.takeLastWhile { it.isDigit() }.toIntOrNull()
                 Track(url, names.getOrNull(index ?: -1) ?: raw)
@@ -250,14 +254,13 @@ class LordFilmMG :
 
         val variants = master.split("#EXT-X-STREAM-INF:").drop(1).mapNotNull { block ->
             val attrs = block.substringBefore('\n')
+            // Вариант с резервной аудиогруппой — дубликат, его в список не берём.
             val audioGroup = STREAM_AUDIO_REGEX.find(attrs)?.groupValues?.get(1).orEmpty()
-            // Рекламный вариант: либо ссылается на аудио-группу рекламы, либо сам
-            // отдаёт рекламный поток (часто ставится первым и с самой высокой
-            // bandwidth — без фильтра именно он и открывался).
-            if (audioGroup.startsWith("failover") || AD_GROUP_REGEX.containsMatchIn(audioGroup)) return@mapNotNull null
+            if (audioGroup.startsWith("failover")) return@mapNotNull null
+            if (isAdSlot(audioGroup)) return@mapNotNull null
             val url = block.substringAfter('\n').lineSequence().firstOrNull { it.isNotBlank() }?.trim()
                 ?: return@mapNotNull null
-            if (AD_URI_REGEX.containsMatchIn(url) || AD_URI_REGEX.containsMatchIn(attrs)) return@mapNotNull null
+            if (isAdSlot(url)) return@mapNotNull null
             val quality = RESOLUTION_REGEX.find(attrs)?.groupValues?.get(1)?.substringAfter('x')?.plus("p")
                 ?: "Видео"
             val bandwidth = BANDWIDTH_REGEX.find(attrs)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
@@ -272,11 +275,26 @@ class LordFilmMG :
             )
         }
 
-        // Ничего «живого» не осталось — значит, обманули ad-фильтры или мастер собран
-        // только из рекламы. Возвращаем пусто, чтобы код пошёл в WebView-fallback.
-        if (variants.isEmpty()) return emptyList()
-
         return variants.sortedByDescending { (bandwidth, _) -> bandwidth }.map { (_, video) -> video }
+    }
+
+    /**
+     * Слот/URI «точно рекламный» только если первый сегмент пути или
+     * само имя файла — ровно одно из ключевых слов ORTIFIED-VAST/IMA:
+     *
+     *   /preroll/1080p/index.m3u8            → AD slot
+     *   /ad/720p/index.m3u8                  → AD slot
+     *   /vast/master.m3u8                    → AD slot
+     *
+     * а обычные CDN-узлы вроде /cdn/ads-cdn.ru/seg_001.ts — НЕ реклама,
+     * поэтому `ads` внутри подстроки игнорируется.
+     */
+    private fun isAdSlot(uri: String): Boolean {
+        if (uri.isBlank()) return false
+        // Относительный путь: отрезаем хост, берём первый сегмент.
+        val pathOnly = if (uri.contains("://")) uri.substringAfter("://").substringAfter('/') else uri.trimStart('/')
+        val firstSegment = pathOnly.substringBefore('/').substringBefore('?').substringBefore('#').lowercase()
+        return firstSegment in AD_SLOT_SEGMENTS
     }
 
     /** Плеер-iframe ortified: единственный, отдающий сетку серий и прямой поток. */
@@ -525,12 +543,25 @@ class LordFilmMG :
         // Некоторые списки несут опечатку или диапазон года, например "(20265)" / "(2024-2025)".
         private val TITLE_TAIL_REGEX = Regex("""\s*\(\d{4}\S*\)\s*$""")
 
-        // Пре-ролл/постролл/VAST/IMA признаки — то, что нужно выкинуть, чтобы вместо
-        // серии не показывалась реклама. Покрывает и группы (ad / ads-…)
-        // и сами URL (vast. / preroll. / imads- / sponsor-… — имена встречались
-        // в дампах мастер-плейлиста ortified).
-        private val AD_GROUP_REGEX = Regex("""(?i)\b(?:ad|ads|preroll|postroll|ima|sponsor|banner)s?\b""")
-        private val AD_URI_REGEX = Regex("""(?i)(?:^|[/.])(?:ad|ads|preroll|postroll|ima|sponsor|banner|vast)(?:[/.]|$)""")
+        /**
+         * Маркеры рекламных слотов в ortified. Это именно имена файлов/папок,
+         * которые ortified кладёт в мастер-плейлист когда ему вставляют VAST/IMA
+         * рекламу. Сравниваем со всем сегментом пути (lowercase, без домена).
+         *
+         * Подстроки внутри длинных имён (типа /cdn/ads-cdn.ru/…) НЕ матчатся —
+         * мы берём только ПЕРВЫЙ сегмент URL.
+         */
+        private val AD_SLOT_SEGMENTS =
+            setOf(
+                "ad",        // /ad/1080p/index.m3u8
+                "ads",       // /ads/720p/index.m3u8
+                "preroll",   // /preroll/...
+                "postroll",  // /postroll/...
+                "ima",       // /ima/...
+                "vast",      // /vast/master.m3u8
+                "sponsor",   // /sponsor/...
+                "promo",     // /promo/...
+            )
     }
 }
 
@@ -561,5 +592,5 @@ data class PlayerAudio(
 @Serializable
 data class PlayerSubtitle(
     val url: String = "",
-    val name: String = "",
+    val name: "",
 )
