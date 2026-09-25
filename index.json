@@ -315,10 +315,10 @@
   {
     "name": "Aniyomi: LordFilmMG",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.lordfilmmg",
-    "apk": "aniyomi-ru.lordfilmmg-v14.6.apk",
+    "apk": "aniyomi-ru.lordfilmmg-v14.8.apk",
     "lang": "ru",
-    "code": 6,
-    "version": "14.6",
+    "code": 8,
+    "version": "14.8",
     "nsfw": 0,
     "sources": [
       {
