@@ -66,7 +66,6 @@ class LordFilmMG :
 
     // =============================== Latest ===============================
 
-    // Лента новинок DLE — единственный список с пагинацией cstart.
     override fun latestUpdatesRequest(page: Int): Request = GET("$baseUrl/index.php?do=lastnews&cstart=$page", headers)
 
     override fun latestUpdatesParse(response: Response): AnimesPage = listParse(response)
@@ -79,7 +78,6 @@ class LordFilmMG :
         filters: AnimeFilterList,
     ): Request {
         if (query.isNotBlank()) return searchRequest(query, page)
-
         return listRequest(LordFilmMGFilters.getSearchParameters(filters).path, page)
     }
 
@@ -152,7 +150,6 @@ class LordFilmMG :
                 season.episodes.map { episode ->
                     val number = episode.episode.toIntOrNull() ?: 0
                     SEpisode.create().apply {
-                        // Сезон и серию храним в url — плеер выбирает их query-параметрами.
                         url = "${anime.url}#S${season.season}:E${episode.episode}"
                         name = buildString {
                             if (multiSeason) append("Сезон ${season.season} • ")
@@ -166,7 +163,7 @@ class LordFilmMG :
 
     override fun episodeListParse(response: Response): List<SEpisode> = throw UnsupportedOperationException("Not used.")
 
-    // ============================ Video Links =============================
+    // ============================ Video Links ===============================
 
     override suspend fun getVideoList(episode: SEpisode): List<Video> {
         val path = episode.url.substringBefore('#')
@@ -188,8 +185,6 @@ class LordFilmMG :
                 client.newCall(GET(target, playerHeaders(referer))).awaitSuccess().bodyString()
             }.getOrNull()
 
-            // Сериал: берём ровно ту серию, которую запросили, а не первую в сетке —
-            // раньше плеер отдавал playlist целиком и открывалась не та серия.
             val source = html?.let { body ->
                 if (season != null && series != null) {
                     body.parsePlaylist()
@@ -205,7 +200,6 @@ class LordFilmMG :
             if (videos.isNotEmpty()) return videos
         }
 
-        // Запасной путь — веб-плееры во встроенном WebView.
         val players = page.embeddedPlayers()
         if (players.isEmpty()) throw Exception("Плеер не найден на странице")
 
@@ -215,14 +209,6 @@ class LordFilmMG :
         }
     }
 
-    /**
-     * Собирает видео из HLS-мастера плеера и подставляет НАСТОЯЩИЕ названия озвучек.
-     *
-     * В master-плейлисте дорожки называются служебно (rus0, rus1, ukr9…), а
-     * человеческие названия лежат отдельно в поле audio.names — при простом
-     * разборе дорожка и её подпись расходились, из-за чего звук «жил своей
-     * жизнью»: включалась не та озвучка, что выбрал пользователь.
-     */
     private suspend fun streamVideos(source: PlayerSource, referer: String): List<Video> {
         val hls = source.hls?.takeIf { it.isNotBlank() } ?: return emptyList()
         val master = runCatching {
@@ -232,14 +218,6 @@ class LordFilmMG :
         val names = source.audio?.names.orEmpty()
         val subtitles = source.cc.orEmpty().map { Track(it.url, it.name) }
 
-        // Дорожки основной группы; failover-группа — те же озвучки с резервного CDN.
-        // В v14.6 я добавил AD_GROUP_REGEX/AD_URI_REGEX (по словам ad/ads/preroll…),
-        // и ортифаед раздаёт CDN-сегменты вида /cdn/ads-cdn.ru/seg_N.ts — регекс
-        // ловил «ads» внутри этого хоста и промахивался все серии на «пусто»,
-        // дальше код шёл в WebView-fallback и ExoPlayer показывал
-        // «unrecognized file format». Здесь фильтр снова узкий — только когда
-        // URI сам по себе — рекламный плейлист целиком (имя файла полностью или
-        // первый сегмент пути состоит из ad/ads/preroll/postroll/vast/ima).
         val audio = AUDIO_MEDIA_REGEX.findAll(master)
             .mapNotNull { match ->
                 val attrs = match.groupValues[1]
@@ -254,7 +232,6 @@ class LordFilmMG :
 
         val variants = master.split("#EXT-X-STREAM-INF:").drop(1).mapNotNull { block ->
             val attrs = block.substringBefore('\n')
-            // Вариант с резервной аудиогруппой — дубликат, его в список не берём.
             val audioGroup = STREAM_AUDIO_REGEX.find(attrs)?.groupValues?.get(1).orEmpty()
             if (audioGroup.startsWith("failover")) return@mapNotNull null
             if (isAdSlot(audioGroup)) return@mapNotNull null
@@ -278,32 +255,18 @@ class LordFilmMG :
         return variants.sortedByDescending { (bandwidth, _) -> bandwidth }.map { (_, video) -> video }
     }
 
-    /**
-     * Слот/URI «точно рекламный» только если первый сегмент пути или
-     * само имя файла — ровно одно из ключевых слов ORTIFIED-VAST/IMA:
-     *
-     *   /preroll/1080p/index.m3u8            → AD slot
-     *   /ad/720p/index.m3u8                  → AD slot
-     *   /vast/master.m3u8                    → AD slot
-     *
-     * а обычные CDN-узлы вроде /cdn/ads-cdn.ru/seg_001.ts — НЕ реклама,
-     * поэтому `ads` внутри подстроки игнорируется.
-     */
     private fun isAdSlot(uri: String): Boolean {
         if (uri.isBlank()) return false
-        // Относительный путь: отрезаем хост, берём первый сегмент.
         val pathOnly = if (uri.contains("://")) uri.substringAfter("://").substringAfter('/') else uri.trimStart('/')
         val firstSegment = pathOnly.substringBefore('/').substringBefore('?').substringBefore('#').lowercase()
         return firstSegment in AD_SLOT_SEGMENTS
     }
 
-    /** Плеер-iframe ortified: единственный, отдающий сетку серий и прямой поток. */
     private fun Document.ortifiedUrl(): String? = selectFirst("iframe[src*='ortified']")
         ?.attr("src")
         ?.takeIf { it.isNotBlank() }
         ?.toAbsoluteUrl()
 
-    /** Сетка сезонов из `playlist: { seasons:[…] }` на странице плеера. */
     private fun String.parsePlaylist(): List<PlayerSeason>? {
         val payload = substringAfter("seasons:", "").takeIf { it.trimStart().startsWith("[") } ?: return null
 
@@ -314,13 +277,11 @@ class LordFilmMG :
             ?.takeIf { it.isNotEmpty() }
     }
 
-    /** Одиночный поток фильма из `source: { … }`. */
     private fun String.parseSource(): PlayerSource? {
         val payload = substringAfter("source:", "").takeIf { it.trimStart().startsWith("{") } ?: return null
         return runCatching { payload.extractJson('{', '}').parseAs<PlayerSource>() }.getOrNull()
     }
 
-    /** Отрезает от строки ровно один сбалансированный JSON-объект или массив. */
     private fun String.extractJson(open: Char, close: Char): String {
         var depth = 0
         var inString = false
@@ -350,8 +311,6 @@ class LordFilmMG :
         else -> "Веб-плеер"
     }
 
-    // ============================== Settings ==============================
-
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         screen.addEditTextPreference(
             key = PREF_DOMAIN_KEY,
@@ -377,14 +336,10 @@ class LordFilmMG :
 
         if (DEAD_MIRRORS.any { it == host }) {
             preferences.edit().putString(PREF_DOMAIN_KEY, PREF_DOMAIN_DEFAULT).apply()
-
             return PREF_DOMAIN_DEFAULT
         }
-
         return url
     }
-
-    // =============================== Utils ================================
 
     private fun listRequest(
         path: String,
@@ -396,7 +351,6 @@ class LordFilmMG :
         return GET(url, headers)
     }
 
-    /** Поиск — стандартный DLE POST, как у всего семейства. */
     private fun searchRequest(
         query: String,
         page: Int,
@@ -449,17 +403,11 @@ class LordFilmMG :
         name = "Смотреть"
     }
 
-    /**
-     * Собирает плееры со страницы: обычные <iframe> плюс еслиrame-ы, которые
-     * сайт вставляет из JavaScript-строк (они присутствуют в исходнике целиком).
-     */
     private fun Document.embeddedPlayers(): List<String> = buildList {
         select("iframe[src]").forEach { add(it.absUrl("src")) }
         val html = html()
         EMBED_REGEX.findAll(html).forEach { add(it.groupValues[1]) }
     }.map { it.toAbsoluteUrl() }
-        // Маркеры player/video/embed ловят и подключаемые скрипты
-        // (vid_vpaut_script.js, actualize.js) — их нельзя отдавать как видео.
         .filterNot { url -> url.substringBefore('?').endsWith(".js") }
         .filterNot { url -> url.substringBefore('?').endsWith(".css") }
         .filter { url -> PLAYER_HOSTS.any { url.contains(it) } }
@@ -500,7 +448,6 @@ class LordFilmMG :
         private const val PREF_DOMAIN_KEY = "pref_domain"
         private const val PREF_DOMAIN_DEFAULT = "https://mg.lordfilm.md"
 
-        /** Зеркала, которые больше не резолвятся (проверено 18.09.2026). */
         private val DEAD_MIRRORS =
             listOf(
                 "lordfilm.md",
@@ -509,7 +456,6 @@ class LordFilmMG :
                 "serial.lordfilm.md",
             )
 
-        /** Хосты реальных плееров этого семейства (без подключаемых скриптов). */
         private val PLAYER_HOSTS =
             listOf(
                 "ortified",
@@ -530,7 +476,6 @@ class LordFilmMG :
 
         private val EMBED_REGEX = Regex("""src\s*=\s*["'](https?://[^"']+)["']""")
 
-        // Мастер-плейлист: аудиодорожки и варианты качества.
         private val AUDIO_MEDIA_REGEX = Regex("""#EXT-X-MEDIA:(TYPE=AUDIO[^\n]*)""")
         private val GROUP_REGEX = Regex("""GROUP-ID="([^"]+)"""")
         private val MEDIA_URI_REGEX = Regex("""URI="([^"]+)"""")
@@ -540,39 +485,28 @@ class LordFilmMG :
         private val BANDWIDTH_REGEX = Regex("""BANDWIDTH=(\d+)""")
         private val TITLE_PREFIX_REGEX = Regex("""^(?:Фильм|Сериал|Мультфильм|Мультсериал|Аниме)\s+""")
 
-        // Некоторые списки несут опечатку или диапазон года, например "(20265)" / "(2024-2025)".
         private val TITLE_TAIL_REGEX = Regex("""\s*\(\d{4}\S*\)\s*$""")
 
-        /**
-         * Маркеры рекламных слотов в ortified. Это именно имена файлов/папок,
-         * которые ortified кладёт в мастер-плейлист когда ему вставляют VAST/IMA
-         * рекламу. Сравниваем со всем сегментом пути (lowercase, без домена).
-         *
-         * Подстроки внутри длинных имён (типа /cdn/ads-cdn.ru/…) НЕ матчатся —
-         * мы берём только ПЕРВЫЙ сегмент URL.
-         */
         private val AD_SLOT_SEGMENTS =
             setOf(
-                "ad",        // /ad/1080p/index.m3u8
-                "ads",       // /ads/720p/index.m3u8
-                "preroll",   // /preroll/...
-                "postroll",  // /postroll/...
-                "ima",       // /ima/...
-                "vast",      // /vast/master.m3u8
-                "sponsor",   // /sponsor/...
-                "promo",     // /promo/...
+                "ad",
+                "ads",
+                "preroll",
+                "postroll",
+                "ima",
+                "vast",
+                "sponsor",
+                "promo",
             )
     }
 }
 
-/** Сезон из сетки плеера ortified. */
 @Serializable
 data class PlayerSeason(
     val season: Int = 0,
     val episodes: List<PlayerSource> = emptyList(),
 )
 
-/** Один источник: серия сериала или единственный поток фильма. */
 @Serializable
 data class PlayerSource(
     val episode: String = "",
@@ -583,7 +517,6 @@ data class PlayerSource(
     val cc: List<PlayerSubtitle>? = null,
 )
 
-/** Человеческие названия озвучек — в мастер-плейлисте дорожки служебные. */
 @Serializable
 data class PlayerAudio(
     val names: List<String> = emptyList(),
@@ -592,5 +525,5 @@ data class PlayerAudio(
 @Serializable
 data class PlayerSubtitle(
     val url: String = "",
-    val name: "",
+    val name: String = "",
 )
