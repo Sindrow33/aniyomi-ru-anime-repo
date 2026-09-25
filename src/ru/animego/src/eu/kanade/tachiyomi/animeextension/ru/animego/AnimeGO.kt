@@ -395,6 +395,7 @@ class AnimeGO :
         private const val ITEMS_PER_PAGE = 24
 
         private const val PREF_DOMAIN_KEY = "pref_domain"
+
         // 2026-09: animego.lat начал отдавать HTTP 500 и SSL-сертификат
         // на CN=2026-animego.org (subjectAltNames: [2026-animego.org]),
         // т.е. домен фактически мёртв — расширение отказывалось грузить каталог.
