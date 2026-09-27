@@ -239,20 +239,34 @@ class LordFilm :
                 }
             }
 
-            val videos = source?.let { streamVideos(it, target) }.orEmpty()
-            if (videos.isNotEmpty()) return videos
+            val videos = source?.let { streamVideos(it, embedReferer(target)) }.orEmpty()
+            if (videos.isNotEmpty()) {
+                // Веб-плеер оставляем последним пунктом: если CDN всё же
+                // откажет, серию можно открыть во встроенном WebView.
+                return videos + webPlayerVideos(page, referer, series)
+            }
         }
 
-        val players = page
-            .embeddedPlayers()
-            .map { if (it.isInsertunitEmbed()) it.actualizeEmbed() else it }
+        val players = webPlayerVideos(page, referer, series)
         if (players.isEmpty()) throw Exception("Плеер не найден на странице")
 
-        return players.map { player ->
+        return players
+    }
+
+    private fun webPlayerVideos(
+        page: Document,
+        referer: String,
+        series: String?,
+    ): List<Video> = page
+        .embeddedPlayers()
+        .map { if (it.isInsertunitEmbed()) it.actualizeEmbed() else it }
+        .map { player ->
             val label = if (series == null) webTitle(player) else "Серия $series • ${webTitle(player)}"
             Video(player, label, player, headers = playerHeaders(referer))
         }
-    }
+
+    /** Для запросов к CDN реферером должен быть сам плеер, а не страница сайта. */
+    private fun embedReferer(embedUrl: String): String = embedUrl.toOrigin() + "/"
 
     private suspend fun streamVideos(source: PlayerSource, referer: String): List<Video> {
         val hls = source.hls?.takeIf { it.isNotBlank() } ?: return emptyList()
@@ -270,9 +284,13 @@ class LordFilm :
                 if (isAdSlot(GROUP_REGEX.find(attrs)?.groupValues?.get(1).orEmpty())) return@mapNotNull null
                 val url = MEDIA_URI_REGEX.find(attrs)?.groupValues?.get(1) ?: return@mapNotNull null
                 if (isAdSlot(url)) return@mapNotNull null
+                // NAME в плейлисте — технический "rus0"/"ukr4"; человеческие
+                // названия озвучек лежат в audio.names самого плеера.
                 val raw = MEDIA_NAME_REGEX.find(attrs)?.groupValues?.get(1).orEmpty()
                 val index = raw.takeLastWhile { it.isDigit() }.toIntOrNull()
-                Track(url, names.getOrNull(index ?: -1) ?: raw)
+                val lang = raw.dropLastWhile { it.isDigit() }.toLangLabel()
+                val title = names.getOrNull(index ?: -1)
+                Track(url, listOfNotNull(title ?: raw.takeIf { it.isNotBlank() }, lang).joinToString(" • "))
             }.toList()
 
         val variants = master.split("#EXT-X-STREAM-INF:").drop(1).mapNotNull { block ->
@@ -298,6 +316,15 @@ class LordFilm :
         }
 
         return variants.sortedByDescending { (bandwidth, _) -> bandwidth }.map { (_, video) -> video }
+    }
+
+    private fun String.toLangLabel(): String? = when (lowercase()) {
+        "rus", "ru" -> "рус"
+        "ukr", "uk" -> "укр"
+        "eng", "en" -> "eng"
+        "kor", "ko" -> "kor"
+        "jpn", "ja" -> "jpn"
+        else -> null
     }
 
     private fun isAdSlot(uri: String): Boolean {
@@ -523,10 +550,22 @@ class LordFilm :
         .filter { url -> url.isInsertunitEmbed() || PLAYER_HOSTS.any { host -> url.contains(host) } }
         .distinct()
 
+    /**
+     * CDN плеера (interkh.com и родственные) подписывает ссылки под тот
+     * User-Agent, которым забрали embed-страницу: с любым другим UA сегменты
+     * отдают HTTP 410 «доступ закрыт». Поэтому и embed, и мастер-плейлист, и
+     * сами видео ходят с одним и тем же набором заголовков.
+     */
     private fun playerHeaders(referer: String) = headers
         .newBuilder()
         .set("Referer", referer)
+        .set("Origin", referer.toOrigin())
         .build()
+
+    private fun String.toOrigin(): String = runCatching {
+        val url = toHttpUrl()
+        "${url.scheme}://${url.host}"
+    }.getOrDefault(baseUrl)
 
     private fun Document.infoMap(): Map<String, String> = select(".flist li")
         .mapNotNull { item ->
