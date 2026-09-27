@@ -369,10 +369,10 @@
   {
     "name": "Aniyomi: YummyAnime",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.yummyanime",
-    "apk": "aniyomi-ru.yummyanime-v14.4.apk",
+    "apk": "aniyomi-ru.yummyanime-v14.5.apk",
     "lang": "ru",
-    "code": 4,
-    "version": "14.4",
+    "code": 5,
+    "version": "14.5",
     "nsfw": 0,
     "sources": [
       {
