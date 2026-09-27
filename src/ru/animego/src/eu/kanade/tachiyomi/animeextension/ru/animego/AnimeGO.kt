@@ -13,6 +13,7 @@ import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.awaitSuccess
 import keiyoushi.utils.AnimeHttpLegacySource
+import keiyoushi.utils.addEditTextPreference
 import keiyoushi.utils.addListPreference
 import keiyoushi.utils.addSwitchPreference
 import keiyoushi.utils.bodyString
@@ -40,8 +41,30 @@ class AnimeGO :
 
     private val preferences by getPreferencesLazy()
 
+    /**
+     * Из всего семейства зеркал живым остался только [PREF_DOMAIN_DEFAULT]:
+     * animego.lat не резолвится, а animego.org / .me / .one / .club
+     * редиректят на animego.me, который отдаёт HTTP 500. Поэтому вместо
+     * списка мёртвых зеркал — одно поле, а известные нерабочие хосты
+     * сбрасываются на дефолт автоматически.
+     */
     private val domain: String
-        get() = preferences.getString(PREF_DOMAIN_KEY, PREF_DOMAIN_DEFAULT)!!
+        get() {
+            val raw = preferences
+                .getString(PREF_DOMAIN_KEY, PREF_DOMAIN_DEFAULT)!!
+                .trim()
+                .trimEnd('/')
+                .removePrefix("https://")
+                .removePrefix("http://")
+                .removePrefix("www.")
+                .substringBefore('/')
+
+            if (raw.isBlank() || raw in DEAD_DOMAINS) {
+                preferences.edit().putString(PREF_DOMAIN_KEY, PREF_DOMAIN_DEFAULT).apply()
+                return PREF_DOMAIN_DEFAULT
+            }
+            return raw
+        }
 
     override val baseUrl: String
         get() = "https://$domain"
@@ -290,13 +313,16 @@ class AnimeGO :
     // ============================== Settings ==============================
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
-        screen.addListPreference(
+        screen.addEditTextPreference(
             key = PREF_DOMAIN_KEY,
             default = PREF_DOMAIN_DEFAULT,
             title = "Домен сайта",
-            summary = "%s\nСменить, если текущее зеркало перестало открываться. Требуется перезапуск.",
-            entries = PREF_DOMAIN_ENTRIES,
-            entryValues = PREF_DOMAIN_ENTRIES,
+            summary = "%s\nСменить, если зеркало перестало открываться. Требуется перезапуск.",
+            dialogMessage =
+            "По умолчанию: $PREF_DOMAIN_DEFAULT\n" +
+                "Это единственное рабочее зеркало на 2026-09. Старые " +
+                "(animego.lat / .org / .me / .one / .club) не работают и " +
+                "сбрасываются автоматически.",
             restartRequired = true,
         )
 
@@ -396,13 +422,19 @@ class AnimeGO :
 
         private const val PREF_DOMAIN_KEY = "pref_domain"
 
-        // 2026-09: animego.lat начал отдавать HTTP 500 и SSL-сертификат
-        // на CN=2026-animego.org (subjectAltNames: [2026-animego.org]),
-        // т.е. домен фактически мёртв — расширение отказывалось грузить каталог.
-        // Переключаем дефолт на живое зеркало 2026-animego.org и поднимаем его
-        // в списке первым, чтобы новые инсталлы сразу открывали рабочий сайт.
         private const val PREF_DOMAIN_DEFAULT = "2026-animego.org"
-        private val PREF_DOMAIN_ENTRIES = listOf("2026-animego.org", "animego.org", "animego.lat", "animego.me", "animego.one")
+
+        // Проверено 2026-09-27: animego.lat / .pw не резолвятся, а
+        // animego.org / .me / .one / .club редиректят на animego.me с HTTP 500.
+        private val DEAD_DOMAINS =
+            setOf(
+                "animego.lat",
+                "animego.org",
+                "animego.me",
+                "animego.one",
+                "animego.club",
+                "animego.pw",
+            )
 
         private const val PREF_QUALITY_KEY = "pref_quality"
         private const val PREF_QUALITY_DEFAULT = "720p"
