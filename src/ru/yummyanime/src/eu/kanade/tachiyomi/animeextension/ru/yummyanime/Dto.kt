@@ -11,20 +11,28 @@ class YummyResponse<T>(
 )
 
 @Serializable
-class YummyCatalogDto(
-    val data: List<YummyAnimeDto>? = null,
-)
-
-@Serializable
 class YummyAnimeDto(
     private val title: String? = null,
     @SerialName("anime_url") private val animeUrl: String? = null,
     private val poster: YummyPosterDto? = null,
+    private val genres: List<YummyNamedDto>? = null,
+    private val year: Int? = null,
+    @SerialName("anime_status") private val status: YummyStatusDto? = null,
+    private val type: YummyNamedDto? = null,
 ) {
     fun toSAnime() = SAnime.create().apply {
         title = this@YummyAnimeDto.title ?: ""
         url = animeUrl ?: ""
         thumbnail_url = poster?.bestUrl()
+        // Жанры и тип приходят уже в каталоге — заполняем сразу, чтобы теги
+        // были видны до открытия карточки.
+        genre = listOfNotNull(
+            type?.title ?: type?.name,
+            year?.toString(),
+        ).plus(genres.orEmpty().mapNotNull { it.title })
+            .filter { it.isNotBlank() }
+            .joinToString(", ")
+        status = this@YummyAnimeDto.status?.toSAnimeStatus() ?: SAnime.UNKNOWN
     }
 }
 
@@ -50,18 +58,50 @@ class YummyDetailsDto(
     val poster: YummyPosterDto? = null,
     val type: YummyNamedDto? = null,
     val videos: List<YummyVideoDto>? = null,
+    val year: Int? = null,
+    val duration: Int? = null,
+    val episodes: YummyEpisodesDto? = null,
+    val rating: YummyRatingDto? = null,
+    @SerialName("min_age") val minAge: YummyNamedDto? = null,
+    @SerialName("other_titles") val otherTitles: List<String>? = null,
+    val creators: List<YummyNamedDto>? = null,
+)
+
+@Serializable
+class YummyEpisodesDto(
+    val count: Int? = null,
+    val aired: Int? = null,
+)
+
+@Serializable
+class YummyRatingDto(
+    val average: Double? = null,
+    val counters: Int? = null,
 )
 
 @Serializable
 class YummyNamedDto(
     val title: String? = null,
     val alias: String? = null,
-)
+    /** У типа тайтла человекочитаемое значение лежит в `name`, а не в `title`. */
+    val name: String? = null,
+    @SerialName("title_long") val titleLong: String? = null,
+) {
+    fun titleLongOrTitle(): String? = (titleLong ?: title)?.takeIf { it.isNotBlank() }
+}
 
 @Serializable
 class YummyStatusDto(
     val value: JsonPrimitive? = null,
-)
+    val alias: String? = null,
+) {
+    /** 0/"released" — вышел, 1/"ongoing" — онгоинг. */
+    fun toSAnimeStatus(): Int = when {
+        alias == "ongoing" || value?.content == "1" -> SAnime.ONGOING
+        alias == "released" || value?.content == "0" -> SAnime.COMPLETED
+        else -> SAnime.UNKNOWN
+    }
+}
 
 @Serializable
 class YummyVideoDto(

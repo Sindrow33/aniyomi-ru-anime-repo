@@ -57,61 +57,77 @@ class YummyAnime :
         }.also(screen::addPreference)
     }
 
-    // ============================== Popular ===============================
+    // ============================== Catalog ===============================
 
-    private fun catalogRequest(page: Int): Request {
-        val url = "$apiUrl/anime/catalog".toHttpUrl().newBuilder()
-            .addQueryParameter("limit", PAGE_SIZE.toString())
-            .addQueryParameter("offset", ((page - 1) * PAGE_SIZE).toString())
-            .build()
+    /**
+     * `/anime/catalog` игнорирует limit/offset и всегда отдаёт одни и те же 24
+     * тайтла — именно поэтому «Популярное» не листалось. Настоящий каталог
+     * сайта — `GET /anime` со всеми фильтрами и постраничной выборкой.
+     */
+    private fun catalogRequest(
+        page: Int,
+        params: YummyAnimeFilters.SearchParams,
+        query: String = "",
+    ): Request {
+        val url = "$apiUrl/anime".toHttpUrl().newBuilder().apply {
+            addQueryParameter("limit", PAGE_SIZE.toString())
+            addQueryParameter("offset", ((page - 1) * PAGE_SIZE).toString())
+            addQueryParameter("sort", params.sort)
+            addQueryParameter("sort_forward", params.ascending.toString())
+            query.takeIf { it.isNotBlank() }?.let { addQueryParameter("q", it) }
+            params.genres.forEach { addQueryParameter("genres", it.toString()) }
+            params.types.forEach { addQueryParameter("types", it) }
+            params.status.takeIf { it.isNotBlank() }?.let { addQueryParameter("status", it) }
+            params.season.takeIf { it.isNotBlank() }?.let { addQueryParameter("season", it) }
+            params.minAge.takeIf { it.isNotBlank() }?.let { addQueryParameter("min_age", it) }
+            params.yearFrom.takeIf { it.isNotBlank() }?.let { addQueryParameter("from_year", it) }
+            params.yearTo.takeIf { it.isNotBlank() }?.let { addQueryParameter("to_year", it) }
+            params.episodesFrom.takeIf { it.isNotBlank() }?.let { addQueryParameter("ep_from", it) }
+            params.episodesTo.takeIf { it.isNotBlank() }?.let { addQueryParameter("ep_to", it) }
+        }.build()
 
         return GET(url, headers)
     }
 
-    override fun popularAnimeRequest(page: Int): Request = catalogRequest(page)
-
-    override fun popularAnimeParse(response: Response): AnimesPage {
-        val data = response.parseAs<YummyResponse<YummyCatalogDto>>().response
-        val animes = data?.data?.map { it.toSAnime() }?.distinctBy { it.url } ?: emptyList()
+    /** `/anime` отдаёт плоский список, `/search` — тоже; страница есть, пока список полон. */
+    private fun Response.toAnimesPage(): AnimesPage {
+        val animes = parseAs<YummyResponse<List<YummyAnimeDto>>>()
+            .response
+            ?.map { it.toSAnime() }
+            ?.distinctBy { it.url }
+            .orEmpty()
 
         return AnimesPage(animes, animes.size >= PAGE_SIZE)
     }
+
+    // ============================== Popular ===============================
+
+    override fun popularAnimeRequest(page: Int): Request = catalogRequest(page, YummyAnimeFilters.SearchParams())
+
+    override fun popularAnimeParse(response: Response): AnimesPage = response.toAnimesPage()
 
     // =============================== Latest ===============================
 
-    override fun latestUpdatesRequest(page: Int): Request = GET("$apiUrl/anime/schedule", headers)
+    // Сортировка по дате добавления, а не расписание: расписание повторяло
+    // тайтлы по слотам вещания и не листалось вовсе.
+    override fun latestUpdatesRequest(page: Int): Request = catalogRequest(
+        page,
+        YummyAnimeFilters.SearchParams(sort = "id"),
+    )
 
-    override fun latestUpdatesParse(response: Response): AnimesPage {
-        // The schedule lists a title once per airing slot, so the same show repeats.
-        val data = response.parseAs<YummyResponse<List<YummyAnimeDto>>>().response
-        val animes = data?.map { it.toSAnime() }?.distinctBy { it.url } ?: emptyList()
-
-        return AnimesPage(animes, false)
-    }
+    override fun latestUpdatesParse(response: Response): AnimesPage = response.toAnimesPage()
 
     // =============================== Search ===============================
 
-    override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
-        if (query.isBlank()) return catalogRequest(page)
+    override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request = catalogRequest(
+        page,
+        YummyAnimeFilters.getSearchParameters(filters),
+        query,
+    )
 
-        val url = "$apiUrl/search".toHttpUrl().newBuilder()
-            .addQueryParameter("q", query)
-            .addQueryParameter("limit", PAGE_SIZE.toString())
-            .addQueryParameter("offset", ((page - 1) * PAGE_SIZE).toString())
-            .build()
+    override fun searchAnimeParse(response: Response): AnimesPage = response.toAnimesPage()
 
-        return GET(url, headers)
-    }
-
-    override fun searchAnimeParse(response: Response): AnimesPage {
-        // Blank queries fall back to the catalog, which answers with a paginated object.
-        if (!response.request.url.encodedPath.endsWith("/search")) return popularAnimeParse(response)
-
-        val data = response.parseAs<YummyResponse<List<YummyAnimeDto>>>().response
-        val animes = data?.map { it.toSAnime() }?.distinctBy { it.url } ?: emptyList()
-
-        return AnimesPage(animes, animes.size >= PAGE_SIZE)
-    }
+    override fun getFilterList(): AnimeFilterList = YummyAnimeFilters.FILTER_LIST
 
     // =========================== Anime Details ============================
 
@@ -124,15 +140,39 @@ class YummyAnime :
 
         return SAnime.create().apply {
             title = data.title ?: ""
-            description = data.description
-            genre = data.genres?.joinToString { it.title ?: "" }
-            status = when (data.status?.value?.content) {
-                "0" -> SAnime.COMPLETED
-                "1" -> SAnime.ONGOING
-                else -> SAnime.UNKNOWN
-            }
-            author = data.studios?.joinToString { it.title ?: "" }
-            thumbnail_url = data.poster?.huge?.fixProtocol() ?: data.poster?.big?.fixProtocol()
+            genre = listOfNotNull(data.type?.name ?: data.type?.title, data.year?.toString())
+                .plus(data.genres.orEmpty().mapNotNull { it.title })
+                .filter { it.isNotBlank() }
+                .joinToString(", ")
+            status = data.status?.toSAnimeStatus() ?: SAnime.UNKNOWN
+            author = data.studios?.mapNotNull { it.title }?.joinToString()?.takeIf { it.isNotBlank() }
+            artist = data.creators?.mapNotNull { it.title }?.take(4)?.joinToString()?.takeIf { it.isNotBlank() }
+            thumbnail_url = data.poster?.bestUrl()
+            description = buildString {
+                data.description?.trim()?.takeIf { it.isNotBlank() }?.let {
+                    appendLine(it)
+                    appendLine()
+                }
+                data.otherTitles
+                    ?.filter { it.isNotBlank() }
+                    ?.take(3)
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let { appendLine("Другие названия: ${it.joinToString(" / ")}") }
+                data.year?.let { appendLine("Год выхода: $it") }
+                data.episodes?.let { eps ->
+                    val count = eps.count ?: 0
+                    val aired = eps.aired ?: count
+                    if (count > 0) {
+                        appendLine(if (aired in 1 until count) "Эпизодов: $aired из $count" else "Эпизодов: $count")
+                    }
+                }
+                data.duration?.takeIf { it > 0 }?.let { appendLine("Длительность: $it мин.") }
+                data.minAge?.titleLongOrTitle()?.let { appendLine("Возраст: $it") }
+                data.rating?.average?.takeIf { it > 0 }?.let {
+                    val votes = data.rating.counters ?: 0
+                    appendLine("Оценка: ${String.format("%.2f", it)}" + if (votes > 0) " ($votes)" else "")
+                }
+            }.trim()
         }
     }
 
