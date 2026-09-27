@@ -278,38 +278,36 @@ class Tvigle : AnimeHttpLegacySource() {
 
     override suspend fun getVideoList(episode: SEpisode): List<Video> {
         val parts = episode.url.trim('/').split('/')
-        val videoId = parts.getOrNull(1)?.toIntOrNull()
         val contentId = parts.getOrNull(2)?.toLongOrNull()?.takeIf { it > 0 }
+            ?: throw Exception("Не удалось определить видео")
 
-        val webPlayer = videoId?.let {
-            Video(
-                "$baseUrl/video/${parts[0]}/",
-                "Плеер Tvigle (WebView)",
-                "$baseUrl/video/${parts[0]}/",
-                headers = headers,
-            )
-        }
-
-        if (contentId == null) return listOfNotNull(webPlayer)
-
-        val cloud = runCatching {
+        val item = runCatching {
             client
                 .newCall(GET("$CLOUD_URL/api/play/video/$contentId/?partner_id=$PARTNER_ID", cloudHeaders()))
                 .awaitSuccess()
                 .parseAs<CloudResponseDto>()
         }.getOrNull()
+            ?.playlist
+            ?.items
+            ?.firstOrNull()
 
-        val item = cloud?.playlist?.items?.firstOrNull()
+        item?.errorMessage?.takeIf { it.isNotBlank() }?.let { throw Exception(it.stripHtml()) }
 
-        // Контент Wink/START плеер не отдаёт файлами — играть можно только в WebView.
-        if (item?.videos == null || item.errorMessage != null) return listOfNotNull(webPlayer)
+        val videos = item?.videos
+        // Контент Wink/START плеер cloud.tvigle.ru не отдаёт файлами: там HLS с
+        // AES-ключом на закрытом хосте. Возвращать страницу плеера нельзя —
+        // Tadami считает Video.videoUrl медиапотоком и падает с
+        // «unrecognized file format», поэтому честно сообщаем причину.
+        if (videos == null) {
+            throw Exception("Видео защищено правообладателем (Wink/START) и не воспроизводится в приложении")
+        }
 
         val subtitles = item.subtitlesUrl
             ?.takeIf { it.isNotBlank() }
             ?.let { listOf(Track(it.toAbsoluteUrl(), "Русские")) }
             .orEmpty()
 
-        val direct = (item.videos.hls + item.videos.mp4)
+        val direct = (videos.hls + videos.mp4)
             .mapNotNull { (quality, link) ->
                 val url = link.takeIf { it.isNotBlank() }?.toAbsoluteUrl() ?: return@mapNotNull null
                 val height = QUALITY_REGEX.find(quality)?.groupValues?.get(1)?.toIntOrNull() ?: 0
@@ -318,7 +316,9 @@ class Tvigle : AnimeHttpLegacySource() {
             }.sortedByDescending { (height, _) -> height }
             .map { (_, video) -> video }
 
-        return direct + listOfNotNull(webPlayer)
+        if (direct.isEmpty()) throw Exception("Плеер не отдал ни одной ссылки на видео")
+
+        return direct
     }
 
     private fun cloudHeaders() = headers

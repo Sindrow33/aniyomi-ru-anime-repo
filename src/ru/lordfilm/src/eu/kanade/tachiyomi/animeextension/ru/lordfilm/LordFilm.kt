@@ -54,14 +54,17 @@ class LordFilm :
 
     private val preferences by getPreferencesLazy()
 
+    override val client by lazy {
+        network.client
+            .newBuilder()
+            .addInterceptor(JsChallengeInterceptor(USER_AGENT, network.client.cookieJar))
+            .build()
+    }
+
     override fun headersBuilder() = super
         .headersBuilder()
         .set("Referer", "$baseUrl/")
-        .set(
-            "User-Agent",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) " +
-                "Chrome/131.0.0.0 Safari/537.36",
-        )
+        .set("User-Agent", USER_AGENT)
 
     // ============================== Popular ===============================
 
@@ -240,30 +243,17 @@ class LordFilm :
             }
 
             val videos = source?.let { streamVideos(it, embedReferer(target)) }.orEmpty()
-            if (videos.isNotEmpty()) {
-                // Веб-плеер оставляем последним пунктом: если CDN всё же
-                // откажет, серию можно открыть во встроенном WebView.
-                return videos + webPlayerVideos(page, referer, series)
-            }
+            if (videos.isNotEmpty()) return videos
         }
 
-        val players = webPlayerVideos(page, referer, series)
-        if (players.isEmpty()) throw Exception("Плеер не найден на странице")
-
-        return players
+        // Возвращать здесь HTML-страницу плеера нельзя: плеер Tadami считает
+        // Video.videoUrl медиапотоком и на странице выдаёт
+        // «unrecognized file format». Лучше честная ошибка.
+        throw Exception(
+            "Не удалось получить видео. Смените «Хост плеера» в настройках расширения " +
+                "или откройте тайтл в браузере.",
+        )
     }
-
-    private fun webPlayerVideos(
-        page: Document,
-        referer: String,
-        series: String?,
-    ): List<Video> = page
-        .embeddedPlayers()
-        .map { if (it.isInsertunitEmbed()) it.actualizeEmbed() else it }
-        .map { player ->
-            val label = if (series == null) webTitle(player) else "Серия $series • ${webTitle(player)}"
-            Video(player, label, player, headers = playerHeaders(referer))
-        }
 
     /** Для запросов к CDN реферером должен быть сам плеер, а не страница сайта. */
     private fun embedReferer(embedUrl: String): String = embedUrl.toOrigin() + "/"
@@ -400,13 +390,6 @@ class LordFilm :
         }
 
         return this
-    }
-
-    private fun webTitle(playerUrl: String): String = when {
-        playerUrl.contains(PLAYER_ACTUAL_HOST) -> "Веб-плеер (основной)"
-        playerUrl.contains("lordfilm64") -> "Веб-плеер (LordFilm64)"
-        playerUrl.contains("fotpro") -> "Веб-плеер (FotPro)"
-        else -> "Веб-плеер"
     }
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
@@ -602,6 +585,10 @@ class LordFilm :
                 "tv.lordfilm.md",
                 "serial.lordfilm.md",
             )
+
+        private const val USER_AGENT =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) " +
+                "Chrome/131.0.0.0 Safari/537.36"
 
         private const val PREF_PLAYER_KEY = "pref_player_host"
         private const val PLAYER_ACTUAL_DEFAULT = "https://api.femd.ws"
