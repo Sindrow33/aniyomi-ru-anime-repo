@@ -313,6 +313,24 @@
     ]
   },
   {
+    "name": "Aniyomi: NoodleMagazine",
+    "pkg": "eu.kanade.tachiyomi.animeextension.all.noodlemagazine",
+    "apk": "aniyomi-all.noodlemagazine-v14.1.apk",
+    "lang": "all",
+    "code": 1,
+    "version": "14.1",
+    "nsfw": 1,
+    "sources": [
+      {
+        "name": "NoodleMagazine",
+        "lang": "all",
+        "id": "4496356028720257508",
+        "baseUrl": "https://noodlemagazine.com",
+        "versionId": 1
+      }
+    ]
+  },
+  {
     "name": "Aniyomi: Tvigle",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.tvigle",
     "apk": "aniyomi-ru.tvigle-v14.3.apk",
