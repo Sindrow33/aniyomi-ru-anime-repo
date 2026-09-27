@@ -297,10 +297,10 @@
   {
     "name": "Aniyomi: LordFilm",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.lordfilm",
-    "apk": "aniyomi-ru.lordfilm-v14.10.apk",
+    "apk": "aniyomi-ru.lordfilm-v14.11.apk",
     "lang": "ru",
-    "code": 10,
-    "version": "14.10",
+    "code": 11,
+    "version": "14.11",
     "nsfw": 0,
     "sources": [
       {
@@ -315,10 +315,10 @@
   {
     "name": "Aniyomi: Tvigle",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.tvigle",
-    "apk": "aniyomi-ru.tvigle-v14.2.apk",
+    "apk": "aniyomi-ru.tvigle-v14.3.apk",
     "lang": "ru",
-    "code": 2,
-    "version": "14.2",
+    "code": 3,
+    "version": "14.3",
     "nsfw": 0,
     "sources": [
       {
