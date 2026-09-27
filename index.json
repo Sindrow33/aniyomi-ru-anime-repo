@@ -297,34 +297,16 @@
   {
     "name": "Aniyomi: LordFilm",
     "pkg": "eu.kanade.tachiyomi.animeextension.ru.lordfilm",
-    "apk": "aniyomi-ru.lordfilm-v14.4.apk",
+    "apk": "aniyomi-ru.lordfilm-v14.9.apk",
     "lang": "ru",
-    "code": 4,
-    "version": "14.4",
+    "code": 9,
+    "version": "14.9",
     "nsfw": 0,
     "sources": [
       {
         "name": "LordFilm",
         "lang": "ru",
         "id": "5708867433804223518",
-        "baseUrl": "https://lordfilm.uno",
-        "versionId": 1
-      }
-    ]
-  },
-  {
-    "name": "Aniyomi: LordFilmMG",
-    "pkg": "eu.kanade.tachiyomi.animeextension.ru.lordfilmmg",
-    "apk": "aniyomi-ru.lordfilmmg-v14.8.apk",
-    "lang": "ru",
-    "code": 8,
-    "version": "14.8",
-    "nsfw": 0,
-    "sources": [
-      {
-        "name": "LordFilmMG",
-        "lang": "ru",
-        "id": "8391340670959176002",
         "baseUrl": "https://mg.lordfilm.md",
         "versionId": 1
       }
