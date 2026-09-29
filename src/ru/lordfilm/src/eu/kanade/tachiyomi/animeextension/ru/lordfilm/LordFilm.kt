@@ -146,8 +146,7 @@ class LordFilm :
 
     override fun episodeListRequest(anime: SAnime): Request = GET(baseUrl + anime.url, headers)
 
-    override fun episodeListParse(response: Response): List<SEpisode> =
-        listOf(singleEpisode(response.request.url.encodedPath))
+    override fun episodeListParse(response: Response): List<SEpisode> = listOf(singleEpisode(response.request.url.encodedPath))
 
     private fun singleEpisode(path: String): SEpisode = SEpisode.create().apply {
         url = path
